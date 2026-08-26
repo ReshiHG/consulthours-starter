@@ -13,8 +13,12 @@ const Database = require("better-sqlite3");
 
 const app = express();
 const db = new Database("consulthours.db");
-
-app.use(cors());
+// Opciones de CORS
+const corsOptions = {
+  origin: process.env.FRONTEND_URL,
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET;
