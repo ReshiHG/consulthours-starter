@@ -4,6 +4,7 @@
 // para el propósito de esta evaluación. No lo tomes como referencia de buenas
 // prácticas — al contrario, parte de tu tarea es encontrar y corregir lo que
 // esté mal (incluyendo, no solo, temas de seguridad).
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
@@ -16,7 +17,7 @@ const db = new Database("consulthours.db");
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = "consulthours-super-secret-2024";
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // ---------------------------------------------------------------------------
 // AUTH
@@ -35,10 +36,18 @@ app.post("/api/login", (req, res) => {
   const token = jwt.sign(
     { id: consultant.id, username: consultant.username, role: consultant.role },
     JWT_SECRET,
-    { expiresIn: "2h" }
+    { expiresIn: "2h" },
   );
 
-  res.json({ token, user: { id: consultant.id, username: consultant.username, role: consultant.role, name: consultant.name } });
+  res.json({
+    token,
+    user: {
+      id: consultant.id,
+      username: consultant.username,
+      role: consultant.role,
+      name: consultant.name,
+    },
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -54,13 +63,17 @@ app.get("/api/clients", (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.get("/api/time-entries", (req, res) => {
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT te.*, c.name AS client_name, co.name AS consultant_name
     FROM time_entries te
     JOIN clients c ON c.id = te.client_id
     JOIN consultants co ON co.id = te.consultant_id
     ORDER BY te.date DESC, te.start_time ASC
-  `).all();
+  `,
+    )
+    .all();
   res.json(rows);
 });
 
@@ -74,14 +87,30 @@ app.get("/api/time-entries/search", (req, res) => {
 });
 
 app.post("/api/time-entries", (req, res) => {
-  const { consultant_id, client_id, date, start_time, end_time, billable, description } = req.body;
+  const {
+    consultant_id,
+    client_id,
+    date,
+    start_time,
+    end_time,
+    billable,
+    description,
+  } = req.body;
   // Nota: no se valida que el consultor ya tenga un registro en ese mismo
   // rango de horas ese día. Ver instrucciones del ejercicio.
   const stmt = db.prepare(`
     INSERT INTO time_entries (consultant_id, client_id, date, start_time, end_time, billable, description)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
-  const result = stmt.run(consultant_id, client_id, date, start_time, end_time, billable ? 1 : 0, description);
+  const result = stmt.run(
+    consultant_id,
+    client_id,
+    date,
+    start_time,
+    end_time,
+    billable ? 1 : 0,
+    description,
+  );
   res.status(201).json({ id: result.lastInsertRowid });
 });
 
@@ -100,9 +129,13 @@ app.delete("/api/time-entries/:id", (req, res) => {
 app.get("/api/summary", (req, res) => {
   const { client_id, month } = req.query; // month formato "2026-08"
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT * FROM time_entries WHERE client_id = ? AND date LIKE ?
-  `).all(client_id, `${month}%`);
+  `,
+    )
+    .all(client_id, `${month}%`);
 
   let totalHours = 0;
   rows.forEach((r) => {
