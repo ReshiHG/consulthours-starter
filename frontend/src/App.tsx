@@ -1,0 +1,154 @@
+import { useEffect, useState } from "react";
+import { getTimeEntries, getClients, login, createTimeEntry, deleteTimeEntry, type TimeEntry, type Client } from "./api";
+import "./App.css";
+
+function App() {
+  const [user, setUser] = useState<{ username: string; role: string; name: string } | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+
+  const [form, setForm] = useState({
+    client_id: "",
+    date: "",
+    start_time: "",
+    end_time: "",
+    billable: true,
+    description: "",
+  });
+
+  useEffect(() => {
+    getTimeEntries().then(setEntries);
+    getClients().then(setClients);
+  }, []);
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginError("");
+    try {
+      const data = await login(username, password);
+      setUser(data.user);
+    } catch {
+      setLoginError("Usuario o contraseña incorrectos");
+    }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.client_id || !form.date || !form.start_time || !form.end_time) return;
+    await createTimeEntry({
+      consultant_id: 1, // TODO: usar el consultor con sesión iniciada, no un valor fijo
+      client_id: Number(form.client_id),
+      date: form.date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      billable: form.billable ? 1 : 0,
+      description: form.description,
+    });
+    setForm({ client_id: "", date: "", start_time: "", end_time: "", billable: true, description: "" });
+    setEntries(await getTimeEntries());
+  }
+
+  async function handleDelete(entry: TimeEntry) {
+    // TODO (parte del ejercicio): esta acción no debería estar disponible
+    // para cualquiera. Revisa qué pasa del lado del backend.
+    await deleteTimeEntry(entry.id);
+    setEntries(await getTimeEntries());
+  }
+
+  return (
+    <div className="app">
+      <header>
+        <h1>ConsultHours</h1>
+        {user ? (
+          <span className="user-pill">{user.name} · {user.role}</span>
+        ) : (
+          <span className="user-pill muted">sin sesión</span>
+        )}
+      </header>
+
+      {!user && (
+        <form className="login-form" onSubmit={handleLogin}>
+          <h2>Iniciar sesión</h2>
+          <input placeholder="usuario" value={username} onChange={(e) => setUsername(e.target.value)} />
+          <input placeholder="contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="submit">Entrar</button>
+          {loginError && <p className="error">{loginError}</p>}
+        </form>
+      )}
+
+      <section className="search-bar">
+        {/*
+          TODO (parte del ejercicio): agregar aquí un buscador que filtre los
+          registros por texto usando GET /api/time-entries/search?q=... No hay
+          ninguna pantalla conectada a ese endpoint todavía.
+        */}
+      </section>
+
+      <section className="summary">
+        {/*
+          TODO (parte del ejercicio): construir aquí una vista de "resumen
+          mensual facturable por cliente" usando GET /api/summary. Antes de
+          confiar en el número que regresa el backend, verifícalo contra los
+          datos de prueba de seed.js.
+        */}
+      </section>
+
+      <section className="entry-list">
+        <h2>Registros de horas</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Consultor</th>
+              <th>Cliente</th>
+              <th>Horario</th>
+              <th>Facturable</th>
+              <th>Descripción</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={e.id}>
+                <td>{e.date}</td>
+                <td>{e.consultant_name}</td>
+                <td>{e.client_name}</td>
+                <td>{e.start_time}–{e.end_time}</td>
+                <td>{e.billable ? "Sí" : "No"}</td>
+                <td>{e.description}</td>
+                <td><button onClick={() => handleDelete(e)}>Eliminar</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="new-entry">
+        <h2>Registrar horas</h2>
+        <form onSubmit={handleCreate}>
+          <select value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })}>
+            <option value="">cliente…</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+          <input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
+          <input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
+          <label className="checkbox">
+            <input type="checkbox" checked={form.billable} onChange={(e) => setForm({ ...form, billable: e.target.checked })} />
+            Facturable
+          </label>
+          <input placeholder="descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <button type="submit">Agregar</button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+export default App;
