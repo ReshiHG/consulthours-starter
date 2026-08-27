@@ -30,8 +30,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
-  const query = `SELECT * FROM consultants WHERE username = '${username}' AND password = '${password}'`;
-  const consultant = db.prepare(query).get();
+  const query = `SELECT id,username,password,name,role FROM consultants WHERE username = ? AND password = ?`;
+  const consultant = db.prepare(query).get(username, password);
 
   if (!consultant) {
     return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
