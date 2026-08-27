@@ -59,7 +59,7 @@ app.post("/api/login", (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.get("/api/clients", (req, res) => {
-  res.json(db.prepare("SELECT * FROM clients").all());
+  res.json(db.prepare("SELECT id,name FROM clients").all());
 });
 
 // ---------------------------------------------------------------------------
