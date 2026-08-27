@@ -70,7 +70,7 @@ app.get("/api/time-entries", (req, res) => {
   const rows = db
     .prepare(
       `
-    SELECT te.*, c.name AS client_name, co.name AS consultant_name
+    SELECT te.id, te.consultant_id, te.client_id, te.date, te.start_time, te.end_time, te.billable, te.description, c.name AS client_name, co.name AS consultant_name
     FROM time_entries te
     JOIN clients c ON c.id = te.client_id
     JOIN consultants co ON co.id = te.consultant_id
