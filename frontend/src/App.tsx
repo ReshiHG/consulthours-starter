@@ -1,9 +1,23 @@
 import { useEffect, useState } from "react";
-import { getTimeEntries, getClients, login, createTimeEntry, deleteTimeEntry, type TimeEntry, type Client } from "./api";
+import {
+  getTimeEntries,
+  getTimeEntriesSearch,
+  getClients,
+  login,
+  createTimeEntry,
+  deleteTimeEntry,
+  type TimeEntry,
+  type Client,
+} from "./api";
 import "./App.css";
+import { SearchBar } from "./components/SearchBar";
 
 function App() {
-  const [user, setUser] = useState<{ username: string; role: string; name: string } | null>(null);
+  const [user, setUser] = useState<{
+    username: string;
+    role: string;
+    name: string;
+  } | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -36,9 +50,15 @@ function App() {
     }
   }
 
+  async function handleSearch(q: string) {
+    const results = await getTimeEntriesSearch(q);
+    setEntries(results);
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.client_id || !form.date || !form.start_time || !form.end_time) return;
+    if (!form.client_id || !form.date || !form.start_time || !form.end_time)
+      return;
     await createTimeEntry({
       consultant_id: 1, // TODO: usar el consultor con sesión iniciada, no un valor fijo
       client_id: Number(form.client_id),
@@ -48,7 +68,14 @@ function App() {
       billable: form.billable ? 1 : 0,
       description: form.description,
     });
-    setForm({ client_id: "", date: "", start_time: "", end_time: "", billable: true, description: "" });
+    setForm({
+      client_id: "",
+      date: "",
+      start_time: "",
+      end_time: "",
+      billable: true,
+      description: "",
+    });
     setEntries(await getTimeEntries());
   }
 
@@ -64,7 +91,9 @@ function App() {
       <header>
         <h1>ConsultHours</h1>
         {user ? (
-          <span className="user-pill">{user.name} · {user.role}</span>
+          <span className="user-pill">
+            {user.name} · {user.role}
+          </span>
         ) : (
           <span className="user-pill muted">sin sesión</span>
         )}
@@ -73,8 +102,17 @@ function App() {
       {!user && (
         <form className="login-form" onSubmit={handleLogin}>
           <h2>Iniciar sesión</h2>
-          <input placeholder="usuario" value={username} onChange={(e) => setUsername(e.target.value)} />
-          <input placeholder="contraseña" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input
+            placeholder="usuario"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <input
+            placeholder="contraseña"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <button type="submit">Entrar</button>
           {loginError && <p className="error">{loginError}</p>}
         </form>
@@ -86,6 +124,7 @@ function App() {
           registros por texto usando GET /api/time-entries/search?q=... No hay
           ninguna pantalla conectada a ese endpoint todavía.
         */}
+        <SearchBar onSearch={handleSearch} />
       </section>
 
       <section className="summary">
@@ -117,10 +156,14 @@ function App() {
                 <td>{e.date}</td>
                 <td>{e.consultant_name}</td>
                 <td>{e.client_name}</td>
-                <td>{e.start_time}–{e.end_time}</td>
+                <td>
+                  {e.start_time}–{e.end_time}
+                </td>
                 <td>{e.billable ? "Sí" : "No"}</td>
                 <td>{e.description}</td>
-                <td><button onClick={() => handleDelete(e)}>Eliminar</button></td>
+                <td>
+                  <button onClick={() => handleDelete(e)}>Eliminar</button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -130,20 +173,45 @@ function App() {
       <section className="new-entry">
         <h2>Registrar horas</h2>
         <form onSubmit={handleCreate}>
-          <select value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })}>
+          <select
+            value={form.client_id}
+            onChange={(e) => setForm({ ...form, client_id: e.target.value })}
+          >
             <option value="">cliente…</option>
             {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
-          <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-          <input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
-          <input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
+          <input
+            type="date"
+            value={form.date}
+            onChange={(e) => setForm({ ...form, date: e.target.value })}
+          />
+          <input
+            type="time"
+            value={form.start_time}
+            onChange={(e) => setForm({ ...form, start_time: e.target.value })}
+          />
+          <input
+            type="time"
+            value={form.end_time}
+            onChange={(e) => setForm({ ...form, end_time: e.target.value })}
+          />
           <label className="checkbox">
-            <input type="checkbox" checked={form.billable} onChange={(e) => setForm({ ...form, billable: e.target.checked })} />
+            <input
+              type="checkbox"
+              checked={form.billable}
+              onChange={(e) => setForm({ ...form, billable: e.target.checked })}
+            />
             Facturable
           </label>
-          <input placeholder="descripción" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <input
+            placeholder="descripción"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
           <button type="submit">Agregar</button>
         </form>
       </section>

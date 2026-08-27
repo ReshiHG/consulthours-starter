@@ -38,3 +38,105 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
 ---
 
 1. Encuentra y corrige los problemas de seguridad del backend (no te decimos cuáles son).
+
+1.1. El JWT está escrito directamente en el archivo server.js, lo correcto es manejarlo en el .env y traerlo de ahí
+
+    const JWT_SECRET = "consulthours-super-secret-2024";
+
+    Así que le pedí a la IA que me indicara la mejor forma de gestionar las variables de entorno, por eso instale dotenv
+
+1.2 Sospechaba que cors(), debería tener argumentos para indicar que URL podía hacer peticiones, así que le pregunté a la IA como agregarlos. Por ello agregué la URL al .env
+
+    app.use(cors());
+
+    const corsOptions = {
+      origin: process.env.FRONTEND_URL,
+      optionsSuccessStatus: 200,
+    };
+    app.use(cors(corsOptions));
+
+1.3 En la validación de usuario existe riesgo de inyección sql
+
+const query = `SELECT * FROM consultants WHERE username = '${username}' AND password = '${password}'`;
+const consultant = db.prepare(query).get();
+
+Para solucionarlo implemento una consulta parametrizada
+
+const query = `SELECT id,username,password,name,role FROM consultants WHERE username = ? AND password = ?`;
+const consultant = db.prepare(query).get(username, password);
+
+1.4 En api/clients agrega la buena práctica de traer explícitamente las columnas de la tabla
+
+app.get("/api/clients", (req, res) => {
+res.json(db.prepare("SELECT \* FROM clients").all());
+});
+
+app.get("/api/clients", (req, res) => {
+res.json(db.prepare("SELECT id,name FROM clients").all());
+});
+
+1.5 Refactorizamos el query del endpoint "/api/time-entries" para solicitar las columnas de forma explícita
+
+app.get("/api/time-entries", (req, res) => {
+const rows = db
+.prepare(
+`     SELECT te.id, te.consultant_id, te.client_id, te.date, te.start_time, te.end_time, te.billable, te.description, c.name AS client_name, co.name AS consultant_name
+    FROM time_entries te
+    JOIN clients c ON c.id = te.client_id
+    JOIN consultants co ON co.id = te.consultant_id
+    ORDER BY te.date DESC, te.start_time ASC
+  `,
+)
+.all();
+res.json(rows);
+});
+
+1.6 En api/time-entries/search hay peligro de inyección SQL y la consulta usa \* (mala práctica)
+
+app.get("/api/time-entries/search", (req, res) => {
+const q = req.query.q || "";
+const query = `SELECT * FROM time_entries WHERE description LIKE '%${q}%'`;
+const rows = db.prepare(query).all();
+
+res.json(rows);
+});
+
+Así que parametrizamos la consulta y llamamos a las columnas explícitamente
+
+app.get("/api/time-entries/search", (req, res) => {
+const q = req.query.q || "";
+const query = `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE description LIKE ?`;
+const rows = db.prepare(query).all(`%${q}%`);
+
+res.json(rows);
+});
+
+1.7 Se refactorizan las columnas del endpoint /api/summary y se mueve el número de puerto al archivo de entorno
+
+2. Implementa la búsqueda de registros en el frontend, conectándola al backend.
+
+2.1 Primeró probé el endpoint con Insomnia y funcionó, una vez validado esto procedí a crear la función getTimeEntriesSearch en el archivo api.ts
+
+Posteriormente necesité crear un componente que fuera un form con input search y con los estilos del login.
+
+Para estructurar el componente y por temas de tiempo le pedí a la IA que estructurará el componente, al principio, pensaba manejar la llamada a la API dentro del componente, pero como los resultados se muestran en pantalla al actualizar el estado Entries, decidí que sería mejor manejar la lógica dentro del mismo App.tsx, así que para reconfigurar esto le solicité a la IA que lo integrara, con esto ya pude manejar el handleSearch en App.tsx y el componente SearchBar solo regresaba el callback con el texto, y este ejecutaba la función getTimeEntriesSearch en App.tsx actualizando el estado Entries y con ello la vista.
+
+3. Construye una pantalla de "resumen mensual facturable por cliente" usando el endpoint
+   `/api/summary` — pero antes de confiar en el número que regresa, verifícalo contra los
+   datos de `seed.js`.
+4. Agrega control de acceso con dos niveles, no solo uno:
+   - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
+   - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
+     un administrador puede eliminar cualquiera. Al crear un registro, el consultor dueño
+     debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
+     Revisa con cuidado cómo se está creando un registro nuevo hoy.
+5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
+   - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
+     registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
+   - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
+     o solo el propio.
+     No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
+6. Sube tu solución con commits incrementales normales (no un solo commit final).
+7. Incluye un archivo `NOTES.md` con lo que encontraste, cómo lo corregiste, tus decisiones
+   del punto 5, y — si usaste IA como apoyo — qué le pediste y qué tuviste que corregir
+   de lo que te propuso.

@@ -20,7 +20,10 @@ export type LoginResponse = {
   user: { id: number; username: string; role: string; name: string };
 };
 
-export async function login(username: string, password: string): Promise<LoginResponse> {
+export async function login(
+  username: string,
+  password: string,
+): Promise<LoginResponse> {
   const res = await fetch(`${API_URL}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -40,7 +43,9 @@ export async function getTimeEntries(): Promise<TimeEntry[]> {
   return res.json();
 }
 
-export async function createTimeEntry(input: Omit<TimeEntry, "id">): Promise<{ id: number }> {
+export async function createTimeEntry(
+  input: Omit<TimeEntry, "id">,
+): Promise<{ id: number }> {
   const res = await fetch(`${API_URL}/time-entries`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -55,6 +60,10 @@ export async function deleteTimeEntry(id: number): Promise<void> {
 
 // TODO (parte del ejercicio): implementar aquí una función searchTimeEntries(q)
 // que llame a GET /api/time-entries/search?q=... y se use desde un buscador en la UI.
+export async function getTimeEntriesSearch(q: string): Promise<TimeEntry[]> {
+  const res = await fetch(`${API_URL}/time-entries/search?q=${q}`);
+  return res.json();
+}
 
 // TODO (parte del ejercicio): implementar aquí una función getSummary(clientId, month)
 // que llame a GET /api/summary?client_id=...&month=... y se use en una pantalla de

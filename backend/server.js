@@ -136,9 +136,7 @@ app.get("/api/summary", (req, res) => {
 
   const rows = db
     .prepare(
-      `
-    SELECT * FROM time_entries WHERE client_id = ? AND date LIKE ?
-  `,
+      `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE client_id = ? AND date LIKE ?`,
     )
     .all(client_id, `${month}%`);
 
@@ -157,7 +155,7 @@ app.get("/api/summary", (req, res) => {
   });
 });
 
-const PORT = 4000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`ConsultHours API corriendo en http://localhost:${PORT}`);
 });
