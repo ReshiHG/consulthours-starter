@@ -124,6 +124,17 @@ Para estructurar el componente y por temas de tiempo le pedí a la IA que estruc
 3. Construye una pantalla de "resumen mensual facturable por cliente" usando el endpoint
    `/api/summary` — pero antes de confiar en el número que regresa, verifícalo contra los
    datos de `seed.js`.
+
+3.1 Primero revise el endpoint con insomnia, para verificar use un caso sencillo, con el cliente Textiles Monarca (id: 3) y me devolvio 3 horas, lo que es incorrecto, ya que solo 2 horas fueron facturables. Así que agregué otra condición al query para que solo traiga las horas facturables desde un inicio, reduciendo la carga en el servidor con datos que serán descartados inmediatamente después.
+
+Lo siguiente fue crear la función getSummary en api.tsx
+
+Posteriormente cree dos estados, uno para manejar los datos de envio id y mes, y otro para guardar el resultado
+
+Luego generé el form para enviar los datos al manejador que utilizaría la función de la API para obtener el resumen
+
+Por último genere una tabla simple con los datos de las horas facturables
+
 4. Agrega control de acceso con dos niveles, no solo uno:
    - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
    - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;

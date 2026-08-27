@@ -31,7 +31,8 @@ h1 {
 }
 .login-form,
 .new-entry,
-.search-bar {
+.search-bar,
+.summary {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -62,6 +63,19 @@ h1 {
 }
 .new-entry input,
 .new-entry select {
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+}
+.summary form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.summary input,
+.summary select {
   padding: 8px;
   border: 1px solid #d1d5db;
   border-radius: 6px;

@@ -8,6 +8,8 @@ import {
   deleteTimeEntry,
   type TimeEntry,
   type Client,
+  type SummaryResult,
+  getSummary,
 } from "./api";
 import "./App.css";
 import { SearchBar } from "./components/SearchBar";
@@ -34,6 +36,14 @@ function App() {
     description: "",
   });
 
+  const [summaryForm, setSummaryForm] = useState({
+    client_id: "",
+    month: "",
+  });
+  const [summaryResult, setSummaryResult] = useState<SummaryResult | null>(
+    null,
+  );
+
   useEffect(() => {
     getTimeEntries().then(setEntries);
     getClients().then(setClients);
@@ -53,6 +63,21 @@ function App() {
   async function handleSearch(q: string) {
     const results = await getTimeEntriesSearch(q);
     setEntries(results);
+  }
+
+  async function handleSummary(e: React.FormEvent) {
+    e.preventDefault();
+    if (!summaryForm.client_id || !summaryForm.month) return;
+    try {
+      const result = await getSummary(
+        Number(summaryForm.client_id),
+        summaryForm.month,
+      );
+      setSummaryResult(result);
+    } catch (error) {
+      console.error("Error al obtener resumen:", error);
+      setSummaryResult(null);
+    }
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -118,15 +143,6 @@ function App() {
         </form>
       )}
 
-      <section className="search-bar">
-        {/*
-          TODO (parte del ejercicio): agregar aquí un buscador que filtre los
-          registros por texto usando GET /api/time-entries/search?q=... No hay
-          ninguna pantalla conectada a ese endpoint todavía.
-        */}
-        <SearchBar onSearch={handleSearch} />
-      </section>
-
       <section className="summary">
         {/*
           TODO (parte del ejercicio): construir aquí una vista de "resumen
@@ -134,6 +150,63 @@ function App() {
           confiar en el número que regresa el backend, verifícalo contra los
           datos de prueba de seed.js.
         */}
+        <h2>Resumen mensual</h2>
+        <form onSubmit={handleSummary}>
+          <select
+            value={summaryForm.client_id}
+            onChange={(e) =>
+              setSummaryForm({ ...summaryForm, client_id: e.target.value })
+            }
+          >
+            <option value="">cliente…</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <input
+            placeholder="AAAA-MM"
+            value={summaryForm.month}
+            onChange={(e) =>
+              setSummaryForm({ ...summaryForm, month: e.target.value })
+            }
+          />
+          <button type="submit">Generar</button>
+        </form>
+
+        {summaryResult && (
+          <div className="summary-result">
+            <h3>Resultado</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Mes</th>
+                  <th>Horas facturables</th>
+                  <th>Nº registros</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{summaryResult.clientName || "Sin nombre"}</td>
+                  <td>{summaryResult.month}</td>
+                  <td>{summaryResult.billableHours}</td>
+                  <td>{summaryResult.entryCount}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="search-bar">
+        {/*
+          TODO (parte del ejercicio): agregar aquí un buscador que filtre los
+          registros por texto usando GET /api/time-entries/search?q=... No hay
+          ninguna pantalla conectada a ese endpoint todavía.
+        */}
+        <SearchBar onSearch={handleSearch} />
       </section>
 
       <section className="entry-list">

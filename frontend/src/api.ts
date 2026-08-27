@@ -69,3 +69,19 @@ export async function getTimeEntriesSearch(q: string): Promise<TimeEntry[]> {
 // que llame a GET /api/summary?client_id=...&month=... y se use en una pantalla de
 // "resumen mensual facturable por cliente". Antes de confiar en el número que
 // devuelve, revisa si es consistente con los datos de prueba.
+export type SummaryResult = {
+  client_id: number;
+  clientName: string | null;
+  month: string;
+  billableHours: number;
+  entryCount: number;
+};
+export async function getSummary(
+  clientId: number,
+  month: string,
+): Promise<SummaryResult> {
+  const res = await fetch(
+    `${API_URL}/summary?client_id=${clientId}&month=${month}`,
+  );
+  return res.json();
+}

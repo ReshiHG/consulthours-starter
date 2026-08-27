@@ -134,13 +134,17 @@ app.delete("/api/time-entries/:id", (req, res) => {
 app.get("/api/summary", (req, res) => {
   const { client_id, month } = req.query; // month formato "2026-08"
 
+  // Agrego la ristricción a la consulta para que traiga solo las horas facturables, evitando que traiga registros que puedan alentar la ejecución
   const rows = db
     .prepare(
-      `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE client_id = ? AND date LIKE ?`,
+      `SELECT TE.client_id, C.name, TE.start_time, TE.end_time, TE.billable
+      FROM time_entries TE 
+      INNER JOIN clients C WHERE TE.client_id = C.id AND TE.client_id = ? AND TE.billable = ? AND TE.date LIKE ?`,
     )
-    .all(client_id, `${month}%`);
+    .all(client_id, 1, `${month}%`);
 
   let totalHours = 0;
+  const clientName = rows[0].name;
   rows.forEach((r) => {
     const [sh, sm] = r.start_time.split(":").map(Number);
     const [eh, em] = r.end_time.split(":").map(Number);
@@ -149,8 +153,9 @@ app.get("/api/summary", (req, res) => {
 
   res.json({
     client_id: Number(client_id),
+    clientName: clientName,
     month,
-    billableHours: Math.round(totalHours * 100) / 100,
+    billableHours: Math.round(totalHours * 100) / 100, // No entiendo el fin de esto, pero seguro es una regla de negocio, aunque al final lo deja igual
     entryCount: rows.length,
   });
 });
