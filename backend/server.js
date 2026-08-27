@@ -85,8 +85,9 @@ app.get("/api/time-entries", (req, res) => {
 // TODO(frontend): aún no está conectada a ninguna pantalla — es parte del ejercicio.
 app.get("/api/time-entries/search", (req, res) => {
   const q = req.query.q || "";
-  const query = `SELECT * FROM time_entries WHERE description LIKE '%${q}%'`;
-  const rows = db.prepare(query).all();
+  const query = `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE description LIKE ?`;
+  const rows = db.prepare(query).all(`%${q}%`);
+
   res.json(rows);
 });
 
