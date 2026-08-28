@@ -57,93 +57,95 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
 const JWT_SECRET = "consulthours-super-secret-2024";
 ```
 
-    Así que le pedí a la IA que me indicara la mejor forma de gestionar las variables de entorno, por eso instale dotenv
+Así que le pedí a la IA que me indicara la mejor forma de gestionar las variables de entorno, por eso instale dotenv
 
 ### - 1.2 Sospechaba que cors(), debería tener argumentos para indicar que URL podía hacer peticiones, así que le pregunté a la IA como agregarlos. Por ello agregué la URL al .env
 
-\```javascript
+```javascript
 app.use(cors());
 
-    const corsOptions = {
-      origin: process.env.FRONTEND_URL,
-      optionsSuccessStatus: 200,
-    };
-    app.use(cors(corsOptions));
-
-\```
+const corsOptions = {
+  origin: process.env.FRONTEND_URL,
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
+```
 
 ### - 1.3 En la validación de usuario existe riesgo de inyección sql
 
-\```javascript
+```javascript
 const query = `SELECT \* FROM consultants WHERE username = '${username}' AND password = '${password}'`;
 const consultant = db.prepare(query).get();
-\```
+```
 
 Para solucionarlo implemento una consulta parametrizada
 
-\```javascript
+```javascript
 const query = `SELECT id,username,password,name,role FROM consultants WHERE username = ? AND password = ?`;
 const consultant = db.prepare(query).get(username, password);
-\```
+```
 
 ### - 1.4 En api/clients agrega la buena práctica de traer explícitamente las columnas de la tabla
 
 **Mala práctica**
-\```javascript
+
+```javascript
 app.get("/api/clients", (req, res) => {
-res.json(db.prepare("SELECT \* FROM clients").all());
+  res.json(db.prepare("SELECT \* FROM clients").all());
 });
-\```
+```
 
 **Buena práctica**
-\```javascript
+
+```javascript
 app.get("/api/clients", (req, res) => {
-res.json(db.prepare("SELECT id,name FROM clients").all());
+  res.json(db.prepare("SELECT id,name FROM clients").all());
 });
-\```
+```
 
 ### - 1.5 Se refactorizó el query del endpoint "/api/time-entries" para solicitar las columnas de forma explícita
 
-\```javascript
+```javascript
 app.get("/api/time-entries", (req, res) => {
-const rows = db
-.prepare(
-` SELECT te.id, te.consultant_id, te.client_id, te.date, te.start_time, te.end_time, te.billable, te.description, c.name AS client_name, co.name AS consultant_name
+  const rows = db
+    .prepare(
+      ` SELECT te.id, te.consultant_id, te.client_id, te.date, te.start_time, te.end_time, te.billable, te.description, c.name AS client_name, co.name AS consultant_name
 FROM time_entries te
 JOIN clients c ON c.id = te.client_id
 JOIN consultants co ON co.id = te.consultant_id
 ORDER BY te.date DESC, te.start_time ASC
 `,
-)
-.all();
-res.json(rows);
+    )
+    .all();
+  res.json(rows);
 });
-\```
+```
 
 ### - 1.6 En api/time-entries/search hay peligro de inyección SQL y la consulta usa \* (mala práctica)
 
 **Mala práctica**
-\```javascript
-app.get("/api/time-entries/search", (req, res) => {
-const q = req.query.q || "";
-const query = `SELECT \* FROM time_entries WHERE description LIKE '%${q}%'`;
-const rows = db.prepare(query).all();
 
-res.json(rows);
+```javascript
+app.get("/api/time-entries/search", (req, res) => {
+  const q = req.query.q || "";
+  const query = `SELECT \* FROM time_entries WHERE description LIKE '%${q}%'`;
+  const rows = db.prepare(query).all();
+
+  res.json(rows);
 });
-\```
+```
 
 Así que parametrizamos la consulta y llamamos a las columnas explícitamente:
 
-\```javascript
+```javascript
 app.get("/api/time-entries/search", (req, res) => {
-const q = req.query.q || "";
-const query = `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE description LIKE ?`;
-const rows = db.prepare(query).all(`%${q}%`);
+  const q = req.query.q || "";
+  const query = `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE description LIKE ?`;
+  const rows = db.prepare(query).all(`%${q}%`);
 
-res.json(rows);
+  res.json(rows);
 });
-\```
+```
 
 ### - 1.7 Se refactorizan las columnas del endpoint /api/summary y se mueve el número de puerto al archivo de entorno
 
@@ -224,15 +226,15 @@ Para estructurar el componente y por temas de tiempo le pedí a la IA que estruc
 
 - Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
 
-\```javascript
-node
-const bcrypt = require('bcrypt');
-bcrypt.hashSync('admin123', 10)
-\```
+```javascript
+node;
+const bcrypt = require("bcrypt");
+bcrypt.hashSync("admin123", 10);
+```
 
 - Posteriormente actualice la forma de hacer el login, buscando por usuario y comparando con bcrypt contra la contraseña en base de datos y para mejorar la seguridad agregamos un login limiter (npm install express-rate-limit)
 
-\```javascript
+```javascript
 const rateLimit = require("express-rate-limit");
 const loginLimiter = rateLimit({
 windowMs: 15 _ 60 _ 1000, // 15 minutos
@@ -258,13 +260,13 @@ return res.status(401).json({ error: "Credenciales incorrectas" });
 [...]
 
 });
-\```
+```
 
 - Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user
 
-\```typescript
+```typescript
 {user && <section></section>}
-\```
+```
 
 - Se modifica el endpoint /api/summary para que pida una autenticación de usuario, valide los formatos de entrada y se gestionen los errores mediante un try catch
 
@@ -282,20 +284,20 @@ un administrador puede eliminar cualquiera.
 
 Para que solo el administrador pueda eliminar todos los registros y cada consultor solo pueda eliminar los propios agregamos en el fontend una validación para que el botón eliminar aparezca según este criterio.
 
-\```typescript
+```typescript
 {(user.role === "admin" || e.consultant_id === user.id) && (
 <button onClick={() => handleDelete(e)}>Eliminar</button>
 )}
-\```
+```
 
 - Del lado del backend, en el endpoint “/api/time-entries/:id” solicitamos el token de autenticación, validamos que el registro exista y dependiendo si el usuario es admin o propietario del registro permitimos que lo borre
 
-\```javascript
+```javascript
 app.delete("/api/time-entries/:id", authenticateToken, (req, res) => {
-try {
-const entryId = req.params.id;
-const userId = req.user.id;
-const userRole = req.user.role;
+  try {
+    const entryId = req.params.id;
+    const userId = req.user.id;
+    const userRole = req.user.role;
 
     // Se verifica que el registro exista y se obtiene el consultant_id par validar
     const entry = db
@@ -316,17 +318,16 @@ const userRole = req.user.role;
     db.prepare("DELETE FROM time_entries WHERE id = ?").run(entryId);
 
     res.json({ ok: true, message: "Registro eliminado correctamente" });
-
-} catch (error) {
-console.error("Error en DELETE /api/time-entries/:id:", error);
-res.status(500).json({ error: "Error interno del servidor" });
-}
+  } catch (error) {
+    console.error("Error en DELETE /api/time-entries/:id:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
-\```
+```
 
 - Del lado del fontend en la _api_, modificamos la función deleteTimeEntry para que obtenga y envié el token de autenticación
 
-\```javascript
+```javascript
 export async function deleteTimeEntry(id: number): Promise<void> {
 const token = localStorage.getItem("token");
 const res = await fetch(`${API_URL}/time-entries/${id}`, {
@@ -340,60 +341,58 @@ const errorData = await res.json().catch(() => ({}));
 throw new Error(errorData.error || "Error al eliminar el registro");
 }
 }
-\```
+```
 
 - Por último en el _handleDelete_ solicitamos una confirmación antes de permitir la eliminación del registro
 
-\```typescript
+```typescript
 async function handleDelete(entry: TimeEntry) {
-// Confirmar eliminación
-const confirmDelete = window.confirm(
-`¿Seguro que quieres eliminar el registro del ${entry.date}?`,
-);
-if (!confirmDelete) return;
+  // Confirmar eliminación
+  const confirmDelete = window.confirm(
+    `¿Seguro que quieres eliminar el registro del ${entry.date}?`,
+  );
+  if (!confirmDelete) return;
 
-    try {
-      await deleteTimeEntry(entry.id);
-      setEntries(await getTimeEntries());
-    } catch (error) {
-      console.error("Error al eliminar:", error);
-      alert(error.message || "No se pudo eliminar el registro");
-    }
-
+  try {
+    await deleteTimeEntry(entry.id);
+    setEntries(await getTimeEntries());
+  } catch (error) {
+    console.error("Error al eliminar:", error);
+    alert(error.message || "No se pudo eliminar el registro");
+  }
 }
-\```
+```
 
 ## Al crear un registro, el consultor dueño debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente. Revisa con cuidado cómo se está creando un registro nuevo hoy.
 
 - Se modifica el handleCreate para que el consultant_id lo tome del user.id que se proporciono al iniciar la sesión.
 
-\```typescript
+```typescript
 await createTimeEntry({
-consultant_id: user.id, // TODO: usar el consultor con sesión iniciada, no un valor fijo
-client_id: Number(form.client_id),
-date: form.date,
-start_time: form.start_time,
-end_time: form.end_time,
-billable: form.billable ? 1 : 0,
-description: form.description,
+  consultant_id: user.id, // TODO: usar el consultor con sesión iniciada, no un valor fijo
+  client_id: Number(form.client_id),
+  date: form.date,
+  start_time: form.start_time,
+  end_time: form.end_time,
+  billable: form.billable ? 1 : 0,
+  description: form.description,
 });
-\```
+```
 
 - Y de manera adicional se solicita la autenticación del usuario al momento de crear en el _endpoint_ y de paso se hace la verificación para evitar solapamientos
 
-\```javascript
-
+```javascript
 app.post("/api/time-entries", authenticateToken, (req, res) => {
-try {
-let {
-consultant_id,
-client_id,
-date,
-start_time,
-end_time,
-billable,
-description,
-} = req.body;
+  try {
+    let {
+      consultant_id,
+      client_id,
+      date,
+      start_time,
+      end_time,
+      billable,
+      description,
+    } = req.body;
 
     // Validaciones
     if (!Number.isInteger(consultant_id) || consultant_id <= 0) {
@@ -465,17 +464,16 @@ description,
     );
 
     res.status(201).json({ id: result.lastInsertRowid });
-
-} catch (error) {
-console.error("Error en POST /api/time-entries:", error);
-res.status(500).json({ error: "Error interno del servidor" });
-}
+  } catch (error) {
+    console.error("Error en POST /api/time-entries:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
-\```
+```
 
 - En la _api_ se modifica createTimeEntry para enviar el token y manejar los errores
 
-\```javascript
+```javascript
 export async function createTimeEntry(
 input: Omit<TimeEntry, "id">,
 ): Promise<{ id: number }> {
@@ -494,61 +492,60 @@ throw new Error(errorData.error || "Error al crear el registro");
 }
 return res.json();
 }
-\```
+```
 
 - Y en el _handleCreate_ se modifica para manejar los errores y validar si intentan agregar horas que se solapan
 
-\```typescript
+```typescript
 async function handleCreate(e: React.FormEvent) {
-e.preventDefault();
+  e.preventDefault();
 
-    // Validar que todos los campos estén completos
-    if (
-      !form.client_id ||
-      !form.date ||
-      !form.start_time ||
-      !form.end_time ||
-      !user
-    ) {
-      alert("Todos los campos son obligatorios");
-      return;
-    }
+  // Validar que todos los campos estén completos
+  if (
+    !form.client_id ||
+    !form.date ||
+    !form.start_time ||
+    !form.end_time ||
+    !user
+  ) {
+    alert("Todos los campos son obligatorios");
+    return;
+  }
 
-    // Validar que la hora de inicio sea anterior a la de fin
-    if (form.start_time >= form.end_time) {
-      alert("La hora de inicio debe ser anterior a la hora de fin");
-      return;
-    }
+  // Validar que la hora de inicio sea anterior a la de fin
+  if (form.start_time >= form.end_time) {
+    alert("La hora de inicio debe ser anterior a la hora de fin");
+    return;
+  }
 
-    try {
-      await createTimeEntry({
-        consultant_id: user.id,
-        client_id: Number(form.client_id),
-        date: form.date,
-        start_time: form.start_time,
-        end_time: form.end_time,
-        billable: form.billable ? 1 : 0,
-        description: form.description,
-      });
+  try {
+    await createTimeEntry({
+      consultant_id: user.id,
+      client_id: Number(form.client_id),
+      date: form.date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      billable: form.billable ? 1 : 0,
+      description: form.description,
+    });
 
-      // Éxito: limpiar formulario y recargar lista
-      setForm({
-        client_id: "",
-        date: "",
-        start_time: "",
-        end_time: "",
-        billable: true,
-        description: "",
-      });
-      setEntries(await getTimeEntries());
-      alert("Registro creado correctamente");
-    } catch (error) {
-      console.error("Error al crear registro:", error);
-      alert(error.message || "No se pudo crear el registro");
-    }
-
+    // Éxito: limpiar formulario y recargar lista
+    setForm({
+      client_id: "",
+      date: "",
+      start_time: "",
+      end_time: "",
+      billable: true,
+      description: "",
+    });
+    setEntries(await getTimeEntries());
+    alert("Registro creado correctamente");
+  } catch (error) {
+    console.error("Error al crear registro:", error);
+    alert(error.message || "No se pudo crear el registro");
+  }
 }
-\```
+```
 
 ## 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
 
