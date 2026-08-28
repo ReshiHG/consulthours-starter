@@ -51,15 +51,18 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
 
 ## 1. Encuentra y corrige los problemas de seguridad del backend (no te decimos cuáles son).
 
-### -1.1. El JWT está escrito directamente en el archivo server.js, lo correcto es manejarlo en el .env y traerlo de ahí
+### - 1.1. El JWT está escrito directamente en el archivo server.js, lo correcto es manejarlo en el .env y traerlo de ahí
 
-    const JWT_SECRET = "consulthours-super-secret-2024";
+\```javascript
+const JWT_SECRET = "consulthours-super-secret-2024";
+\```
 
     Así que le pedí a la IA que me indicara la mejor forma de gestionar las variables de entorno, por eso instale dotenv
 
-### 1.2 Sospechaba que cors(), debería tener argumentos para indicar que URL podía hacer peticiones, así que le pregunté a la IA como agregarlos. Por ello agregué la URL al .env
+### - 1.2 Sospechaba que cors(), debería tener argumentos para indicar que URL podía hacer peticiones, así que le pregunté a la IA como agregarlos. Por ello agregué la URL al .env
 
-    app.use(cors());
+\```javascript
+app.use(cors());
 
     const corsOptions = {
       origin: process.env.FRONTEND_URL,
@@ -67,54 +70,72 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
     };
     app.use(cors(corsOptions));
 
-### 1.3 En la validación de usuario existe riesgo de inyección sql
+\```
 
-const query = `SELECT * FROM consultants WHERE username = '${username}' AND password = '${password}'`;
+### - 1.3 En la validación de usuario existe riesgo de inyección sql
+
+\```javascript
+const query = `SELECT \* FROM consultants WHERE username = '${username}' AND password = '${password}'`;
 const consultant = db.prepare(query).get();
+\```
 
 Para solucionarlo implemento una consulta parametrizada
 
+\```javascript
 const query = `SELECT id,username,password,name,role FROM consultants WHERE username = ? AND password = ?`;
 const consultant = db.prepare(query).get(username, password);
+\```
 
-### 1.4 En api/clients agrega la buena práctica de traer explícitamente las columnas de la tabla
+### - 1.4 En api/clients agrega la buena práctica de traer explícitamente las columnas de la tabla
 
+**Mala práctica**
+\```javascript
 app.get("/api/clients", (req, res) => {
 res.json(db.prepare("SELECT \* FROM clients").all());
 });
+\```
 
+**Buena práctica**
+\```javascript
 app.get("/api/clients", (req, res) => {
 res.json(db.prepare("SELECT id,name FROM clients").all());
 });
+\```
 
-### 1.5 Refactorizamos el query del endpoint "/api/time-entries" para solicitar las columnas de forma explícita
+### - 1.5 Se refactorizó el query del endpoint "/api/time-entries" para solicitar las columnas de forma explícita
 
+\```javascript
 app.get("/api/time-entries", (req, res) => {
 const rows = db
 .prepare(
-`     SELECT te.id, te.consultant_id, te.client_id, te.date, te.start_time, te.end_time, te.billable, te.description, c.name AS client_name, co.name AS consultant_name
-    FROM time_entries te
-    JOIN clients c ON c.id = te.client_id
-    JOIN consultants co ON co.id = te.consultant_id
-    ORDER BY te.date DESC, te.start_time ASC
-  `,
+` SELECT te.id, te.consultant_id, te.client_id, te.date, te.start_time, te.end_time, te.billable, te.description, c.name AS client_name, co.name AS consultant_name
+FROM time_entries te
+JOIN clients c ON c.id = te.client_id
+JOIN consultants co ON co.id = te.consultant_id
+ORDER BY te.date DESC, te.start_time ASC
+`,
 )
 .all();
 res.json(rows);
 });
+\```
 
-### 1.6 En api/time-entries/search hay peligro de inyección SQL y la consulta usa \* (mala práctica)
+### - 1.6 En api/time-entries/search hay peligro de inyección SQL y la consulta usa \* (mala práctica)
 
+**Mala práctica**
+\```javascript
 app.get("/api/time-entries/search", (req, res) => {
 const q = req.query.q || "";
-const query = `SELECT * FROM time_entries WHERE description LIKE '%${q}%'`;
+const query = `SELECT \* FROM time_entries WHERE description LIKE '%${q}%'`;
 const rows = db.prepare(query).all();
 
 res.json(rows);
 });
+\```
 
-Así que parametrizamos la consulta y llamamos a las columnas explícitamente
+Así que parametrizamos la consulta y llamamos a las columnas explícitamente:
 
+\```javascript
 app.get("/api/time-entries/search", (req, res) => {
 const q = req.query.q || "";
 const query = `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE description LIKE ?`;
@@ -122,12 +143,23 @@ const rows = db.prepare(query).all(`%${q}%`);
 
 res.json(rows);
 });
+\```
 
-### 1.7 Se refactorizan las columnas del endpoint /api/summary y se mueve el número de puerto al archivo de entorno
+### - 1.7 Se refactorizan las columnas del endpoint /api/summary y se mueve el número de puerto al archivo de entorno
 
 ## 2. Implementa la búsqueda de registros en el frontend, conectándola al backend.
 
-### 2.1 Primeró probé el endpoint con Insomnia y funcionó, una vez validado esto procedí a crear la función getTimeEntriesSearch en el archivo api.ts
+### Resumen
+
+- **Endpoint probado:** `/api/time-entries/search` (validado con Insomnia).
+- **Implementación en frontend:**
+  - Creación de `SearchBar` (componente de formulario).
+  - Lógica de búsqueda centralizada en `App.tsx` (manejo de estado `Entries`).
+  - Llamada a API con `getTimeEntriesSearch()`.
+
+### Detallado
+
+Primeró probé el endpoint con Insomnia y funcionó, una vez validado esto procedí a crear la función getTimeEntriesSearch en el archivo api.ts
 
 Posteriormente necesité crear un componente que fuera un form con input search y con los estilos del login.
 
@@ -135,26 +167,72 @@ Para estructurar el componente y por temas de tiempo le pedí a la IA que estruc
 
 ## 3. Construye una pantalla de "resumen mensual facturable por cliente" usando el endpoint `/api/summary` — pero antes de confiar en el número que regresa, verifícalo contra los datos de `seed.js`.
 
-3.1 Primero revise el endpoint con insomnia, para verificar use un caso sencillo, con el cliente Textiles Monarca (id: 3) y me devolvio 3 horas, lo que es incorrecto, ya que solo 2 horas fueron facturables. Así que agregué otra condición al query para que solo traiga las horas facturables desde un inicio, reduciendo la carga en el servidor con datos que serán descartados inmediatamente después.
+### Resumen
 
-Lo siguiente fue crear la función getSummary en api.tsx
+- **Verificación manual:** Se detectó que el endpoint `/api/summary` devolvía horas no facturables.
+- **Corrección:** Se agregó filtro `billable = 1` en la consulta SQL.
+- **Componentes en frontend:**
+  - Estado para `summaryData` y `summaryError`.
+  - Formulario para seleccionar cliente y mes.
+  - Tabla de resultados con manejo de errores (pop-up).
 
-Posteriormente cree dos estados, uno para manejar los datos de envio id y mes, y otro para guardar el resultado
+### Detallado
 
-Luego generé el form para enviar los datos al manejador que utilizaría la función de la API para obtener el resumen
+- Primero revise el endpoint con insomnia, para verificar use un caso sencillo, con el cliente Textiles Monarca (id: 3) y me devolvio 3 horas, lo que es incorrecto, ya que solo 2 horas fueron facturables. Así que agregué otra condición al query para que solo traiga las horas facturables desde un inicio, reduciendo la carga en el servidor con datos que serán descartados inmediatamente después.
 
-Por último genere una tabla simple con los datos de las horas facturables
+- Lo siguiente fue crear la función getSummary en api.tsx
+
+- Posteriormente cree dos estados, uno para manejar los datos de envio id y mes, y otro para guardar el resultado
+
+- Luego generé el form para enviar los datos al manejador que utilizaría la función de la API para obtener el resumen
+
+- Por último genere una tabla simple con los datos de las horas facturables
 
 ## 4. Agrega control de acceso con dos niveles, no solo uno:
 
-### 4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
+## - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
 
+## - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
+
+## Resumen
+
+### 4.1. Login con Bcrypt y Rate Limiting
+
+- **Bcrypt:** Se instaló `bcrypt` para hashear contraseñas.
+- **Rate Limiting:** Se implementó `express-rate-limit` (5 intentos en 15 minutos).
+- **Actualización de datos:** Las contraseñas en la base de datos se actualizaron usando `bcrypt.hashSync()`.
+
+### 4.2. Protección de Rutas en Frontend
+
+- Las vistas solo se muestran cuando `user` está definido.
+- Uso de `localStorage` para guardar el token.
+
+### 4.3. Autorización por Rol / Propiedad
+
+- **Regla:** Admin puede eliminar cualquier registro. Consultor solo puede eliminar los suyos.
+- **Frontend:** Renderizado condicional del botón "Eliminar".
+- **Backend:** Middleware `authenticateToken` + verificación de `role` vs `consultant_id`.
+
+### 4.4. Creación de Registros con Autenticación
+
+- **Cambio clave:** `consultant_id` se toma de `req.user.id` (sesión), no del cuerpo de la petición.
+- **Validaciones adicionales:**
+  - Formato de horas (HH:MM).
+  - Solapamiento de horarios (conflicto con otros registros del mismo día).
+
+## Detallado
+
+- Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
+
+\```javascript
 node
 const bcrypt = require('bcrypt');
 bcrypt.hashSync('admin123', 10)
+\```
 
-Posteriormente actualice la forma de hacer el login, buscando por usuario y comparando con bcrypt contra la contraseña en base de datos y para mejorar la seguridad agregamos un login limiter (npm install express-rate-limit)
+- Posteriormente actualice la forma de hacer el login, buscando por usuario y comparando con bcrypt contra la contraseña en base de datos y para mejorar la seguridad agregamos un login limiter (npm install express-rate-limit)
 
+\```javascript
 const rateLimit = require("express-rate-limit");
 const loginLimiter = rateLimit({
 windowMs: 15 _ 60 _ 1000, // 15 minutos
@@ -180,14 +258,19 @@ return res.status(401).json({ error: "Credenciales incorrectas" });
 [...]
 
 });
+\```
 
-Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user {user && <section></section>}
+- Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user
 
-Se modifica el endpoint /api/summary para que pida una autenticación de usuario, valide los formatos de entrada y se gestionen los errores mediante un try catch
+\```typescript
+{user && <section></section>}
+\```
 
-Se modifica la función getSummary para que admita el envio de consultantID, además de obtener y usar el token en el header para la validación del usuario, y el manejo del mensaje de error para mostrarlo al usuario cuando intenta consultar horas facturadas de clientes que no atendio
+- Se modifica el endpoint /api/summary para que pida una autenticación de usuario, valide los formatos de entrada y se gestionen los errores mediante un try catch
 
-También se agrega el estado summaryError, se modifica el handleSummary para que actualice dicho estado y envié el user.id al getSummary. Y por último se agrega un Pop-up con el mensaje de error.
+- Se modifica la función getSummary para que admita el envio de consultantID, además de obtener y usar el token en el header para la validación del usuario, y el manejo del mensaje de error para mostrarlo al usuario cuando intenta consultar horas facturadas de clientes que no atendio
+
+- Se agrega el estado summaryError, se modifica el handleSummary para que actualice dicho estado y envié el user.id al getSummary. Y por último se agrega un Pop-up con el mensaje de error.
 
 ## - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
 
@@ -199,11 +282,15 @@ un administrador puede eliminar cualquiera.
 
 Para que solo el administrador pueda eliminar todos los registros y cada consultor solo pueda eliminar los propios agregamos en el fontend una validación para que el botón eliminar aparezca según este criterio.
 
+\```typescript
 {(user.role === "admin" || e.consultant_id === user.id) && (
 <button onClick={() => handleDelete(e)}>Eliminar</button>
 )}
+\```
 
-Del lado del backend, en el endpoint “/api/time-entries/:id” solicitamos el token de autenticación, validamos que el registro exista y dependiendo si el usuario es admin o propietario del registro permitimos que lo borre
+- Del lado del backend, en el endpoint “/api/time-entries/:id” solicitamos el token de autenticación, validamos que el registro exista y dependiendo si el usuario es admin o propietario del registro permitimos que lo borre
+
+\```javascript
 app.delete("/api/time-entries/:id", authenticateToken, (req, res) => {
 try {
 const entryId = req.params.id;
@@ -235,8 +322,11 @@ console.error("Error en DELETE /api/time-entries/:id:", error);
 res.status(500).json({ error: "Error interno del servidor" });
 }
 });
+\```
 
-Del lado del fontend en la api, modificamos la función deleteTimeEntry para que obtenga y envié el token de autenticación
+- Del lado del fontend en la _api_, modificamos la función deleteTimeEntry para que obtenga y envié el token de autenticación
+
+\```javascript
 export async function deleteTimeEntry(id: number): Promise<void> {
 const token = localStorage.getItem("token");
 const res = await fetch(`${API_URL}/time-entries/${id}`, {
@@ -250,8 +340,11 @@ const errorData = await res.json().catch(() => ({}));
 throw new Error(errorData.error || "Error al eliminar el registro");
 }
 }
+\```
 
-Por último en el handleDelete solicitamos una confirmación antes de permitir la eliminación del registro
+- Por último en el _handleDelete_ solicitamos una confirmación antes de permitir la eliminación del registro
+
+\```typescript
 async function handleDelete(entry: TimeEntry) {
 // Confirmar eliminación
 const confirmDelete = window.confirm(
@@ -268,12 +361,13 @@ if (!confirmDelete) return;
     }
 
 }
+\```
 
-     Al crear un registro, el consultor dueño debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
-     Revisa con cuidado cómo se está creando un registro nuevo hoy.
+## Al crear un registro, el consultor dueño debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente. Revisa con cuidado cómo se está creando un registro nuevo hoy.
 
-     Se modifica el handleCreate para que el consultant_id lo tome del user.id que se proporciono al iniciar la sesión.
+- Se modifica el handleCreate para que el consultant_id lo tome del user.id que se proporciono al iniciar la sesión.
 
+\```typescript
 await createTimeEntry({
 consultant_id: user.id, // TODO: usar el consultor con sesión iniciada, no un valor fijo
 client_id: Number(form.client_id),
@@ -283,7 +377,11 @@ end_time: form.end_time,
 billable: form.billable ? 1 : 0,
 description: form.description,
 });
-Y de manera adicional se solicita la autenticación del usuario al momento de crear en el endpoint y de paso se hace la verificación para evitar solapamientos
+\```
+
+- Y de manera adicional se solicita la autenticación del usuario al momento de crear en el _endpoint_ y de paso se hace la verificación para evitar solapamientos
+
+\```javascript
 
 app.post("/api/time-entries", authenticateToken, (req, res) => {
 try {
@@ -373,8 +471,11 @@ console.error("Error en POST /api/time-entries:", error);
 res.status(500).json({ error: "Error interno del servidor" });
 }
 });
+\```
 
-En la api se modifica createTimeEntry para enviar el token y manejar los errores
+- En la _api_ se modifica createTimeEntry para enviar el token y manejar los errores
+
+\```javascript
 export async function createTimeEntry(
 input: Omit<TimeEntry, "id">,
 ): Promise<{ id: number }> {
@@ -393,9 +494,11 @@ throw new Error(errorData.error || "Error al crear el registro");
 }
 return res.json();
 }
+\```
 
-Y en el handleCreate se modifica para manejar los errores y validar si intentan agregar horas que se solapan
+- Y en el _handleCreate_ se modifica para manejar los errores y validar si intentan agregar horas que se solapan
 
+\```typescript
 async function handleCreate(e: React.FormEvent) {
 e.preventDefault();
 
@@ -445,21 +548,22 @@ e.preventDefault();
     }
 
 }
+\```
 
 ## 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
 
 ### - Qué debería pasar cuando un consultor registra horas que se traslapan con otro registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
 
-No se debería permitir que las horas se solapen para evitar una doble facturación, y mantener los registros confiables. el sistema debe validar las horas antes de hacer el insert
+- No se debería permitir que las horas se solapen para evitar una doble facturación, y mantener los registros confiables. el sistema debe validar las horas antes de hacer el insert
 
-### - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
+### - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores, o solo el propio.
 
-     o solo el propio.
+- Los consultores pueden ver los registros de los demás, sin embargo solo pueden eliminar sus propios registros (excepto para el rol admin, este puede eliminar cualquier registro) y en el resumen de horas facturables solo pueden ver las horas en las que trabajaron ellos mismos, excepto si el rol es admin.
 
-     Los consultores pueden ver los registros de los demás, sin embargo solo pueden eliminar sus propios registros (excepto para el rol admin, este puede eliminar cualquier registro) y en el resumen de horas facturables solo pueden ver las horas en las que trabajaron ellos mismos, excepto si el rol es admin.
-
-     No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
+  No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
 
 ## 6. Sube tu solución con commits incrementales normales (no un solo commit final).
 
 ## 7. Incluye un archivo `NOTES.md` con lo que encontraste, cómo lo corregiste, tus decisiones del punto 5, y — si usaste IA como apoyo — qué le pediste y qué tuviste que corregir de lo que te propuso.
+
+- En general le solicitaba a la ia las estructuras de los componentes y tips para mejorar el código, de lo que me arrojaba solo implementaba lo que necesitaba y hacia correcciones en nombres de variables o le indicaba que obtuviera, por ejemplo, el id del _usuario.id_ que se guardo cuando el usuario inició sesión
