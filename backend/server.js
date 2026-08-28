@@ -10,6 +10,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const Database = require("better-sqlite3");
+const bcrypt = require("bcrypt");
 
 const app = express();
 const db = new Database("consulthours.db");
@@ -26,15 +27,27 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // ---------------------------------------------------------------------------
 // AUTH
 // ---------------------------------------------------------------------------
+// Agregamos un limitador de intentos
+const rateLimit = require("express-rate-limit");
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // máximo 5 intentos
+  message: { error: "Demasiados intentos, intente más tarde" },
+});
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
-  const query = `SELECT id,username,password,name,role FROM consultants WHERE username = ? AND password = ?`;
-  const consultant = db.prepare(query).get(username, password);
+  const query = `SELECT id, username, password, name, role FROM consultants WHERE username = ?`;
+  const consultant = db.prepare(query).get(username);
 
   if (!consultant) {
-    return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
+    return res.status(401).json({ error: "Credenciales incorrectas" });
+  }
+
+  const isValid = await bcrypt.compare(password, consultant.password);
+  if (!isValid) {
+    return res.status(401).json({ error: "Credenciales incorrectas" });
   }
 
   const token = jwt.sign(

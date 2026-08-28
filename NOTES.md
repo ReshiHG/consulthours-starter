@@ -1,4 +1,4 @@
-Al instalar el backend tuve problemas con el comando npm install, así que busqué cin la IA a que se debía el problema
+Al instalar el backend tuve problemas con el comando npm install, así que busqué con la IA a que se debía el problema
 
 -Pregunté: Estoy intentando instalar el backend de un repositorio, sin embargo al ejecutar npm install me suelta los siguientes errores "npm error code 1
 npm error path C:\laragon\www\consulthours-starter\backend\node_modules\better-sqlite3
@@ -141,6 +141,40 @@ Por último genere una tabla simple con los datos de las horas facturables
      un administrador puede eliminar cualquiera. Al crear un registro, el consultor dueño
      debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
      Revisa con cuidado cómo se está creando un registro nuevo hoy.
+
+4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
+node
+const bcrypt = require('bcrypt');
+bcrypt.hashSync('admin123', 10)
+
+Posteriormente actualice la forma de hacer el login, buscando por usuario y comparando con bcrypt contra la contraseña en base de datos y para mejorar la seguridad agregamos un login limiter (npm install express-rate-limit)
+
+const rateLimit = require("express-rate-limit");
+const loginLimiter = rateLimit({
+windowMs: 15 _ 60 _ 1000, // 15 minutos
+max: 5, // máximo 5 intentos
+message: { error: "Demasiados intentos, intente más tarde" },
+});
+
+app.post("/api/login", loginLimiter, async (req, res) => {
+const { username, password } = req.body;
+
+const query = `SELECT id, username, password, name, role FROM consultants WHERE username = ?`;
+const consultant = db.prepare(query).get(username);
+
+if (!consultant) {
+return res.status(401).json({ error: "Credenciales incorrectas" });
+}
+
+const isValid = await bcrypt.compare(password, consultant.password);
+if (!isValid) {
+return res.status(401).json({ error: "Credenciales incorrectas" });
+}
+
+[...]
+
+});
+
 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
    - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
      registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).

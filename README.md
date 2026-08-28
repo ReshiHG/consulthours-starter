@@ -44,13 +44,13 @@ Instrucciones completas en el correo/mensaje que acompaña este repositorio. En 
    - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
      un administrador puede eliminar cualquiera. Al crear un registro, el consultor dueño
      debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
-   Revisa con cuidado cómo se está creando un registro nuevo hoy.
+     Revisa con cuidado cómo se está creando un registro nuevo hoy.
 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
    - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
      registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
    - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
      o solo el propio.
-   No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
+     No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
 6. Sube tu solución con commits incrementales normales (no un solo commit final).
 7. Incluye un archivo `NOTES.md` con lo que encontraste, cómo lo corregiste, tus decisiones
    del punto 5, y — si usaste IA como apoyo — qué le pediste y qué tuviste que corregir
