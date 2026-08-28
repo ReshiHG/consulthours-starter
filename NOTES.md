@@ -1,18 +1,30 @@
+# Notas del Desarrollo – ConsultHours
+
+## Resumen del Proceso
+
+## 1. Problemas Iniciales con la Instalación (resumen)
+
+- **Error principal:** `npm install` fallaba al compilar `better-sqlite3`.
+- **Diagnóstico:** Faltaban herramientas de compilación (C++ y Python).
+- **Solución:** Instalación del workload "Desarrollo para escritorio con C++" en Visual Studio Build Tools 2022.
+
+### Detalles
+
 Al instalar el backend tuve problemas con el comando npm install, así que busqué con la IA a que se debía el problema
 
--Pregunté: Estoy intentando instalar el backend de un repositorio, sin embargo al ejecutar npm install me suelta los siguientes errores "npm error code 1
+**-Pregunté:** Estoy intentando instalar el backend de un repositorio, sin embargo al ejecutar npm install me suelta los siguientes errores "npm error code 1
 npm error path C:\laragon\www\consulthours-starter\backend\node_modules\better-sqlite3
 npm error command failed
 npm error command C:\WINDOWS\system32\cmd.exe /d /s /c node-gyp rebuild
 npm error gyp info it worked if it ends with ok"
 
--Respuesta (corta): El error que ves al instalar better-sqlite3 es muy común en Windows cuando faltan herramientas de compilación para módulos nativos. better-sqlite3 necesita compilarse con C++ y requiere Python y las herramientas de compilación de Visual Studio.
+**-Respuesta (corta):** El error que ves al instalar better-sqlite3 es muy común en Windows cuando faltan herramientas de compilación para módulos nativos. better-sqlite3 necesita compilarse con C++ y requiere Python y las herramientas de compilación de Visual Studio.
 
 Decidí revisar error por error, así que busqué en la web que significa el error "npm error code 1", y encontré que se debe a que la versión de node es muy actual, así que requeire regresar a una versión anterior, para saber que versión se requiere utilicé el comando "npm install --dry-run" que me dio DeepSeek para simular la instalación e indicarme que versión de node necesito, sin embargo esto no mostró ningún error...
 
 Igual decidí hacer un downgrade de Node a la versión 22 que es la que tenia instalada a parte de la 25, sin embargo sigue sin funcionar.
 
-Cambio a preguntarle a la IA pegando toda la lista de errores y me responde esto: "El error es claro: node-gyp no encuentra una instalación válida de Visual Studio con el workload "Desktop development with C++". Aunque tienes Python, te falta el compilador de C++ que necesita better-sqlite3 para compilarse.
+Cambio a preguntarle a la IA pegando toda la lista de errores y me responde esto: "El error es claro: **node-gyp no encuentra una instalación válida de Visual Studio con el workload "Desktop development with C++"**. Aunque tienes Python, te falta el compilador de C++ que necesita better-sqlite3 para compilarse.
 
 Solución 1: Instalar el workload de C++ en Visual Studio Build Tools (recomendada)
 
@@ -37,15 +49,15 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
 
 ---
 
-1. Encuentra y corrige los problemas de seguridad del backend (no te decimos cuáles son).
+## 1. Encuentra y corrige los problemas de seguridad del backend (no te decimos cuáles son).
 
-1.1. El JWT está escrito directamente en el archivo server.js, lo correcto es manejarlo en el .env y traerlo de ahí
+### -1.1. El JWT está escrito directamente en el archivo server.js, lo correcto es manejarlo en el .env y traerlo de ahí
 
     const JWT_SECRET = "consulthours-super-secret-2024";
 
     Así que le pedí a la IA que me indicara la mejor forma de gestionar las variables de entorno, por eso instale dotenv
 
-1.2 Sospechaba que cors(), debería tener argumentos para indicar que URL podía hacer peticiones, así que le pregunté a la IA como agregarlos. Por ello agregué la URL al .env
+### 1.2 Sospechaba que cors(), debería tener argumentos para indicar que URL podía hacer peticiones, así que le pregunté a la IA como agregarlos. Por ello agregué la URL al .env
 
     app.use(cors());
 
@@ -55,7 +67,7 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
     };
     app.use(cors(corsOptions));
 
-1.3 En la validación de usuario existe riesgo de inyección sql
+### 1.3 En la validación de usuario existe riesgo de inyección sql
 
 const query = `SELECT * FROM consultants WHERE username = '${username}' AND password = '${password}'`;
 const consultant = db.prepare(query).get();
@@ -65,7 +77,7 @@ Para solucionarlo implemento una consulta parametrizada
 const query = `SELECT id,username,password,name,role FROM consultants WHERE username = ? AND password = ?`;
 const consultant = db.prepare(query).get(username, password);
 
-1.4 En api/clients agrega la buena práctica de traer explícitamente las columnas de la tabla
+### 1.4 En api/clients agrega la buena práctica de traer explícitamente las columnas de la tabla
 
 app.get("/api/clients", (req, res) => {
 res.json(db.prepare("SELECT \* FROM clients").all());
@@ -75,7 +87,7 @@ app.get("/api/clients", (req, res) => {
 res.json(db.prepare("SELECT id,name FROM clients").all());
 });
 
-1.5 Refactorizamos el query del endpoint "/api/time-entries" para solicitar las columnas de forma explícita
+### 1.5 Refactorizamos el query del endpoint "/api/time-entries" para solicitar las columnas de forma explícita
 
 app.get("/api/time-entries", (req, res) => {
 const rows = db
@@ -91,7 +103,7 @@ const rows = db
 res.json(rows);
 });
 
-1.6 En api/time-entries/search hay peligro de inyección SQL y la consulta usa \* (mala práctica)
+### 1.6 En api/time-entries/search hay peligro de inyección SQL y la consulta usa \* (mala práctica)
 
 app.get("/api/time-entries/search", (req, res) => {
 const q = req.query.q || "";
@@ -111,19 +123,17 @@ const rows = db.prepare(query).all(`%${q}%`);
 res.json(rows);
 });
 
-1.7 Se refactorizan las columnas del endpoint /api/summary y se mueve el número de puerto al archivo de entorno
+### 1.7 Se refactorizan las columnas del endpoint /api/summary y se mueve el número de puerto al archivo de entorno
 
-2. Implementa la búsqueda de registros en el frontend, conectándola al backend.
+## 2. Implementa la búsqueda de registros en el frontend, conectándola al backend.
 
-2.1 Primeró probé el endpoint con Insomnia y funcionó, una vez validado esto procedí a crear la función getTimeEntriesSearch en el archivo api.ts
+### 2.1 Primeró probé el endpoint con Insomnia y funcionó, una vez validado esto procedí a crear la función getTimeEntriesSearch en el archivo api.ts
 
 Posteriormente necesité crear un componente que fuera un form con input search y con los estilos del login.
 
 Para estructurar el componente y por temas de tiempo le pedí a la IA que estructurará el componente, al principio, pensaba manejar la llamada a la API dentro del componente, pero como los resultados se muestran en pantalla al actualizar el estado Entries, decidí que sería mejor manejar la lógica dentro del mismo App.tsx, así que para reconfigurar esto le solicité a la IA que lo integrara, con esto ya pude manejar el handleSearch en App.tsx y el componente SearchBar solo regresaba el callback con el texto, y este ejecutaba la función getTimeEntriesSearch en App.tsx actualizando el estado Entries y con ello la vista.
 
-3. Construye una pantalla de "resumen mensual facturable por cliente" usando el endpoint
-   `/api/summary` — pero antes de confiar en el número que regresa, verifícalo contra los
-   datos de `seed.js`.
+## 3. Construye una pantalla de "resumen mensual facturable por cliente" usando el endpoint `/api/summary` — pero antes de confiar en el número que regresa, verifícalo contra los datos de `seed.js`.
 
 3.1 Primero revise el endpoint con insomnia, para verificar use un caso sencillo, con el cliente Textiles Monarca (id: 3) y me devolvio 3 horas, lo que es incorrecto, ya que solo 2 horas fueron facturables. Así que agregué otra condición al query para que solo traiga las horas facturables desde un inicio, reduciendo la carga en el servidor con datos que serán descartados inmediatamente después.
 
@@ -135,9 +145,10 @@ Luego generé el form para enviar los datos al manejador que utilizaría la func
 
 Por último genere una tabla simple con los datos de las horas facturables
 
-4. Agrega control de acceso con dos niveles, no solo uno:
+## 4. Agrega control de acceso con dos niveles, no solo uno:
 
-4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
+### 4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
+
 node
 const bcrypt = require('bcrypt');
 bcrypt.hashSync('admin123', 10)
@@ -178,12 +189,13 @@ Se modifica la función getSummary para que admita el envio de consultantID, ade
 
 También se agrega el estado summaryError, se modifica el handleSummary para que actualice dicho estado y envié el user.id al getSummary. Y por último se agrega un Pop-up con el mensaje de error.
 
-- **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
+## - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
 
 Para esto, solo se muestran las pantallas cuando el usuario se loguea, y al mismo tiempo se guarda en el localStorage el token del usuario para realizar las validaciones con los endpoints
 
-- **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
-  un administrador puede eliminar cualquiera.
+## - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
+
+un administrador puede eliminar cualquiera.
 
 Para que solo el administrador pueda eliminar todos los registros y cada consultor solo pueda eliminar los propios agregamos en el fontend una validación para que el botón eliminar aparezca según este criterio.
 
@@ -434,19 +446,20 @@ e.preventDefault();
 
 }
 
-5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
-   - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
-     registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
+## 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
 
-   No se debería permitir que las horas se solapen para evitar una doble facturación, y mantener los registros confiables. el sistema debe validar las horas antes de hacer el insert
-   - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
+### - Qué debería pasar cuando un consultor registra horas que se traslapan con otro registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
+
+No se debería permitir que las horas se solapen para evitar una doble facturación, y mantener los registros confiables. el sistema debe validar las horas antes de hacer el insert
+
+### - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
+
      o solo el propio.
 
      Los consultores pueden ver los registros de los demás, sin embargo solo pueden eliminar sus propios registros (excepto para el rol admin, este puede eliminar cualquier registro) y en el resumen de horas facturables solo pueden ver las horas en las que trabajaron ellos mismos, excepto si el rol es admin.
 
      No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
 
-6. Sube tu solución con commits incrementales normales (no un solo commit final).
-7. Incluye un archivo `NOTES.md` con lo que encontraste, cómo lo corregiste, tus decisiones
-   del punto 5, y — si usaste IA como apoyo — qué le pediste y qué tuviste que corregir
-   de lo que te propuso.
+## 6. Sube tu solución con commits incrementales normales (no un solo commit final).
+
+## 7. Incluye un archivo `NOTES.md` con lo que encontraste, cómo lo corregiste, tus decisiones del punto 5, y — si usaste IA como apoyo — qué le pediste y qué tuviste que corregir de lo que te propuso.
