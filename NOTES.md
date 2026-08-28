@@ -53,9 +53,9 @@ Seguí las intrucciones para terminar de poblar la base de datos y ejecutar el s
 
 ### - 1.1. El JWT está escrito directamente en el archivo server.js, lo correcto es manejarlo en el .env y traerlo de ahí
 
-\```javascript
+```javascript
 const JWT_SECRET = "consulthours-super-secret-2024";
-\```
+```
 
     Así que le pedí a la IA que me indicara la mejor forma de gestionar las variables de entorno, por eso instale dotenv
 
