@@ -175,6 +175,8 @@ return res.status(401).json({ error: "Credenciales incorrectas" });
 
 });
 
+Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user {user && <section></section>}
+
 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
    - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
      registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
