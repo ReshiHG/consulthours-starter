@@ -97,40 +97,99 @@ app.get("/api/time-entries", (req, res) => {
 
 // Búsqueda de registros por texto libre en la descripción.
 // TODO(frontend): aún no está conectada a ninguna pantalla — es parte del ejercicio.
-app.get("/api/time-entries/search", (req, res) => {
+app.get("/api/time-entries/search", authenticateToken, (req, res) => {
   const q = req.query.q || "";
   const query = `SELECT id, consultant_id, client_id, date, start_time, end_time, billable, description FROM time_entries WHERE description LIKE ?`;
   const rows = db.prepare(query).all(`%${q}%`);
-
   res.json(rows);
 });
 
-app.post("/api/time-entries", (req, res) => {
-  const {
-    consultant_id,
-    client_id,
-    date,
-    start_time,
-    end_time,
-    billable,
-    description,
-  } = req.body;
-  // Nota: no se valida que el consultor ya tenga un registro en ese mismo
-  // rango de horas ese día. Ver instrucciones del ejercicio.
-  const stmt = db.prepare(`
-    INSERT INTO time_entries (consultant_id, client_id, date, start_time, end_time, billable, description)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
-  const result = stmt.run(
-    consultant_id,
-    client_id,
-    date,
-    start_time,
-    end_time,
-    billable ? 1 : 0,
-    description,
-  );
-  res.status(201).json({ id: result.lastInsertRowid });
+app.post("/api/time-entries", authenticateToken, (req, res) => {
+  try {
+    let {
+      consultant_id,
+      client_id,
+      date,
+      start_time,
+      end_time,
+      billable,
+      description,
+    } = req.body;
+
+    // Validaciones
+    if (!Number.isInteger(consultant_id) || consultant_id <= 0) {
+      return res.status(400).json({ error: "ID de consultante inválido" });
+    }
+
+    if (!Number.isInteger(client_id) || client_id <= 0) {
+      return res.status(400).json({ error: "ID de cliente inválido" });
+    }
+
+    // Validar formato y orden de horas
+    if (
+      !/^([01]\d|2[0-3]):([0-5]\d)$/.test(start_time) ||
+      !/^([01]\d|2[0-3]):([0-5]\d)$/.test(end_time)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Formato de hora inválido. Use HH:MM" });
+    }
+    if (start_time >= end_time) {
+      return res.status(400).json({
+        error: "La hora de inicio debe ser anterior a la hora de fin",
+      });
+    }
+
+    // Validación de solapamiento
+    const conflictQuery = `
+      SELECT id FROM time_entries
+      WHERE consultant_id = ?
+        AND date = ?
+        AND (
+          (start_time < ? AND end_time > ?) OR  -- nuevo empieza antes de que termine el existente
+          (start_time < ? AND end_time > ?) OR  -- nuevo termina después de que empiece el existente
+          (start_time >= ? AND end_time <= ?)   -- nuevo está completamente dentro del existente
+        )
+    `;
+    const conflict = db
+      .prepare(conflictQuery)
+      .get(
+        consultant_id,
+        date,
+        end_time,
+        start_time,
+        start_time,
+        end_time,
+        start_time,
+        end_time,
+      );
+
+    if (conflict) {
+      return res.status(409).json({
+        error:
+          "El consultor ya tiene un registro de horas que se traslapa con el horario solicitado.",
+      });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO time_entries (consultant_id, client_id, date, start_time, end_time, billable, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      consultant_id,
+      client_id,
+      date,
+      start_time,
+      end_time,
+      billable ? 1 : 0,
+      description,
+    );
+
+    res.status(201).json({ id: result.lastInsertRowid });
+  } catch (error) {
+    console.error("Error en POST /api/time-entries:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // Sin ningún tipo de verificación de sesión ni de rol.

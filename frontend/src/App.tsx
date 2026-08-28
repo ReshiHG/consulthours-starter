@@ -65,8 +65,13 @@ function App() {
   }
 
   async function handleSearch(q: string) {
-    const results = await getTimeEntriesSearch(q);
-    setEntries(results);
+    try {
+      const results = await getTimeEntriesSearch(q);
+      setEntries(results);
+    } catch (error) {
+      console.error("Error en búsqueda:", error);
+      alert(error.message || "Error al buscar registros");
+    }
   }
 
   async function handleSummary(e: React.FormEvent) {
@@ -89,32 +94,51 @@ function App() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+
+    // Validar que todos los campos estén completos
     if (
       !form.client_id ||
       !form.date ||
       !form.start_time ||
       !form.end_time ||
       !user
-    )
+    ) {
+      alert("Todos los campos son obligatorios");
       return;
-    await createTimeEntry({
-      consultant_id: user.id, // TODO: usar el consultor con sesión iniciada, no un valor fijo
-      client_id: Number(form.client_id),
-      date: form.date,
-      start_time: form.start_time,
-      end_time: form.end_time,
-      billable: form.billable ? 1 : 0,
-      description: form.description,
-    });
-    setForm({
-      client_id: "",
-      date: "",
-      start_time: "",
-      end_time: "",
-      billable: true,
-      description: "",
-    });
-    setEntries(await getTimeEntries());
+    }
+
+    // Validar que la hora de inicio sea anterior a la de fin
+    if (form.start_time >= form.end_time) {
+      alert("La hora de inicio debe ser anterior a la hora de fin");
+      return;
+    }
+
+    try {
+      await createTimeEntry({
+        consultant_id: user.id,
+        client_id: Number(form.client_id),
+        date: form.date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        billable: form.billable ? 1 : 0,
+        description: form.description,
+      });
+
+      // Éxito: limpiar formulario y recargar lista
+      setForm({
+        client_id: "",
+        date: "",
+        start_time: "",
+        end_time: "",
+        billable: true,
+        description: "",
+      });
+      setEntries(await getTimeEntries());
+      alert("Registro creado correctamente");
+    } catch (error) {
+      console.error("Error al crear registro:", error);
+      alert(error.message || "No se pudo crear el registro");
+    }
   }
 
   async function handleDelete(entry: TimeEntry) {

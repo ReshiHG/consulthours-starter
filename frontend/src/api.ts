@@ -46,11 +46,19 @@ export async function getTimeEntries(): Promise<TimeEntry[]> {
 export async function createTimeEntry(
   input: Omit<TimeEntry, "id">,
 ): Promise<{ id: number }> {
+  const token = localStorage.getItem("token");
   const res = await fetch(`${API_URL}/time-entries`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify(input),
   });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Error al crear el registro");
+  }
   return res.json();
 }
 
@@ -71,7 +79,19 @@ export async function deleteTimeEntry(id: number): Promise<void> {
 // TODO (parte del ejercicio): implementar aquí una función searchTimeEntries(q)
 // que llame a GET /api/time-entries/search?q=... y se use desde un buscador en la UI.
 export async function getTimeEntriesSearch(q: string): Promise<TimeEntry[]> {
-  const res = await fetch(`${API_URL}/time-entries/search?q=${q}`);
+  const token = localStorage.getItem("token");
+  const res = await fetch(
+    `${API_URL}/time-entries/search?q=${encodeURIComponent(q)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Error al buscar registros");
+  }
   return res.json();
 }
 

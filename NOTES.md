@@ -136,7 +136,49 @@ Luego generé el form para enviar los datos al manejador que utilizaría la func
 Por último genere una tabla simple con los datos de las horas facturables
 
 4. Agrega control de acceso con dos niveles, no solo uno:
-   - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
+
+4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
+node
+const bcrypt = require('bcrypt');
+bcrypt.hashSync('admin123', 10)
+
+Posteriormente actualice la forma de hacer el login, buscando por usuario y comparando con bcrypt contra la contraseña en base de datos y para mejorar la seguridad agregamos un login limiter (npm install express-rate-limit)
+
+const rateLimit = require("express-rate-limit");
+const loginLimiter = rateLimit({
+windowMs: 15 _ 60 _ 1000, // 15 minutos
+max: 5, // máximo 5 intentos
+message: { error: "Demasiados intentos, intente más tarde" },
+});
+
+app.post("/api/login", loginLimiter, async (req, res) => {
+const { username, password } = req.body;
+
+const query = `SELECT id, username, password, name, role FROM consultants WHERE username = ?`;
+const consultant = db.prepare(query).get(username);
+
+if (!consultant) {
+return res.status(401).json({ error: "Credenciales incorrectas" });
+}
+
+const isValid = await bcrypt.compare(password, consultant.password);
+if (!isValid) {
+return res.status(401).json({ error: "Credenciales incorrectas" });
+}
+
+[...]
+
+});
+
+Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user {user && <section></section>}
+
+Se modifica el endpoint /api/summary para que pida una autenticación de usuario, valide los formatos de entrada y se gestionen los errores mediante un try catch
+
+Se modifica la función getSummary para que admita el envio de consultantID, además de obtener y usar el token en el header para la validación del usuario, y el manejo del mensaje de error para mostrarlo al usuario cuando intenta consultar horas facturadas de clientes que no atendio
+
+También se agrega el estado summaryError, se modifica el handleSummary para que actualice dicho estado y envié el user.id al getSummary. Y por último se agrega un Pop-up con el mensaje de error.
+
+- **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
 
 Para esto, solo se muestran las pantallas cuando el usuario se loguea, y al mismo tiempo se guarda en el localStorage el token del usuario para realizar las validaciones con los endpoints
 
@@ -218,52 +260,185 @@ if (!confirmDelete) return;
      Al crear un registro, el consultor dueño debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
      Revisa con cuidado cómo se está creando un registro nuevo hoy.
 
+     Se modifica el handleCreate para que el consultant_id lo tome del user.id que se proporciono al iniciar la sesión.
 
+await createTimeEntry({
+consultant_id: user.id, // TODO: usar el consultor con sesión iniciada, no un valor fijo
+client_id: Number(form.client_id),
+date: form.date,
+start_time: form.start_time,
+end_time: form.end_time,
+billable: form.billable ? 1 : 0,
+description: form.description,
+});
+Y de manera adicional se solicita la autenticación del usuario al momento de crear en el endpoint y de paso se hace la verificación para evitar solapamientos
 
-4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
-node
-const bcrypt = require('bcrypt');
-bcrypt.hashSync('admin123', 10)
+app.post("/api/time-entries", authenticateToken, (req, res) => {
+try {
+let {
+consultant_id,
+client_id,
+date,
+start_time,
+end_time,
+billable,
+description,
+} = req.body;
 
-Posteriormente actualice la forma de hacer el login, buscando por usuario y comparando con bcrypt contra la contraseña en base de datos y para mejorar la seguridad agregamos un login limiter (npm install express-rate-limit)
+    // Validaciones
+    if (!Number.isInteger(consultant_id) || consultant_id <= 0) {
+      return res.status(400).json({ error: "ID de consultante inválido" });
+    }
 
-const rateLimit = require("express-rate-limit");
-const loginLimiter = rateLimit({
-windowMs: 15 _ 60 _ 1000, // 15 minutos
-max: 5, // máximo 5 intentos
-message: { error: "Demasiados intentos, intente más tarde" },
+    if (!Number.isInteger(client_id) || client_id <= 0) {
+      return res.status(400).json({ error: "ID de cliente inválido" });
+    }
+
+    // Validar formato y orden de horas
+    if (
+      !/^([01]\d|2[0-3]):([0-5]\d)$/.test(start_time) ||
+      !/^([01]\d|2[0-3]):([0-5]\d)$/.test(end_time)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Formato de hora inválido. Use HH:MM" });
+    }
+    if (start_time >= end_time) {
+      return res.status(400).json({
+        error: "La hora de inicio debe ser anterior a la hora de fin",
+      });
+    }
+
+    // Validación de solapamiento
+    const conflictQuery = `
+      SELECT id FROM time_entries
+      WHERE consultant_id = ?
+        AND date = ?
+        AND (
+          (start_time < ? AND end_time > ?) OR  -- nuevo empieza antes de que termine el existente
+          (start_time < ? AND end_time > ?) OR  -- nuevo termina después de que empiece el existente
+          (start_time >= ? AND end_time <= ?)   -- nuevo está completamente dentro del existente
+        )
+    `;
+    const conflict = db
+      .prepare(conflictQuery)
+      .get(
+        consultant_id,
+        date,
+        end_time,
+        start_time,
+        start_time,
+        end_time,
+        start_time,
+        end_time,
+      );
+
+    if (conflict) {
+      return res.status(409).json({
+        error:
+          "El consultor ya tiene un registro de horas que se traslapa con el horario solicitado.",
+      });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO time_entries (consultant_id, client_id, date, start_time, end_time, billable, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+      consultant_id,
+      client_id,
+      date,
+      start_time,
+      end_time,
+      billable ? 1 : 0,
+      description,
+    );
+
+    res.status(201).json({ id: result.lastInsertRowid });
+
+} catch (error) {
+console.error("Error en POST /api/time-entries:", error);
+res.status(500).json({ error: "Error interno del servidor" });
+}
 });
 
-app.post("/api/login", loginLimiter, async (req, res) => {
-const { username, password } = req.body;
-
-const query = `SELECT id, username, password, name, role FROM consultants WHERE username = ?`;
-const consultant = db.prepare(query).get(username);
-
-if (!consultant) {
-return res.status(401).json({ error: "Credenciales incorrectas" });
-}
-
-const isValid = await bcrypt.compare(password, consultant.password);
-if (!isValid) {
-return res.status(401).json({ error: "Credenciales incorrectas" });
-}
-
-[...]
-
+En la api se modifica createTimeEntry para enviar el token y manejar los errores
+export async function createTimeEntry(
+input: Omit<TimeEntry, "id">,
+): Promise<{ id: number }> {
+const token = localStorage.getItem("token");
+const res = await fetch(`${API_URL}/time-entries`, {
+method: "POST",
+headers: {
+"Content-Type": "application/json",
+Authorization: `Bearer ${token}`,
+},
+body: JSON.stringify(input),
 });
+if (!res.ok) {
+const errorData = await res.json().catch(() => ({}));
+throw new Error(errorData.error || "Error al crear el registro");
+}
+return res.json();
+}
 
-Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user {user && <section></section>}
+Y en el handleCreate se modifica para manejar los errores y validar si intentan agregar horas que se solapan
 
-Se modifica el endpoint /api/summary para que pida una autenticación de usuario, valide los formatos de entrada y se gestionen los errores mediante un try catch
+async function handleCreate(e: React.FormEvent) {
+e.preventDefault();
 
-Se modifica la función getSummary para que admita el envio de consultantID, además de obtener y usar el token en el header para la validación del usuario, y el manejo del mensaje de error para mostrarlo al usuario cuando intenta consultar horas facturadas de clientes que no atendio
+    // Validar que todos los campos estén completos
+    if (
+      !form.client_id ||
+      !form.date ||
+      !form.start_time ||
+      !form.end_time ||
+      !user
+    ) {
+      alert("Todos los campos son obligatorios");
+      return;
+    }
 
-También se agrega el estado summaryError, se modifica el handleSummary para que actualice dicho estado y envié el user.id al getSummary. Y por último se agrega un Pop-up con el mensaje de error.
+    // Validar que la hora de inicio sea anterior a la de fin
+    if (form.start_time >= form.end_time) {
+      alert("La hora de inicio debe ser anterior a la hora de fin");
+      return;
+    }
+
+    try {
+      await createTimeEntry({
+        consultant_id: user.id,
+        client_id: Number(form.client_id),
+        date: form.date,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        billable: form.billable ? 1 : 0,
+        description: form.description,
+      });
+
+      // Éxito: limpiar formulario y recargar lista
+      setForm({
+        client_id: "",
+        date: "",
+        start_time: "",
+        end_time: "",
+        billable: true,
+        description: "",
+      });
+      setEntries(await getTimeEntries());
+      alert("Registro creado correctamente");
+    } catch (error) {
+      console.error("Error al crear registro:", error);
+      alert(error.message || "No se pudo crear el registro");
+    }
+
+}
 
 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
    - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
      registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
+
+   No se debería permitir que las horas se solapen para evitar una doble facturación, y mantener los registros confiables. el sistema debe validar las horas antes de hacer el insert
    - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
      o solo el propio.
 
