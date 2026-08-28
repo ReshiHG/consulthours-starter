@@ -79,9 +79,20 @@ export type SummaryResult = {
 export async function getSummary(
   clientId: number,
   month: string,
+  consultantId: number,
 ): Promise<SummaryResult> {
+  const token = localStorage.getItem("token");
   const res = await fetch(
-    `${API_URL}/summary?client_id=${clientId}&month=${month}`,
+    `${API_URL}/summary?client_id=${clientId}&month=${month}&consultant_id=${consultantId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
   );
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Error al obtener el resumen");
+  }
   return res.json();
 }

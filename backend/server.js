@@ -147,7 +147,7 @@ app.delete("/api/time-entries/:id", (req, res) => {
 
 app.get("/api/summary", authenticateToken, (req, res) => {
   try {
-    const { client_id, month } = req.query;
+    const { client_id, month, consultant_id } = req.query;
 
     // Validación de parámetros
     const clientIdNum = Number(client_id);
@@ -161,17 +161,56 @@ app.get("/api/summary", authenticateToken, (req, res) => {
         .json({ error: "Formato de mes inválido. Use YYYY-MM" });
     }
 
-    const rows = db
-      .prepare(
-        `SELECT TE.client_id, C.name AS client_name, TE.start_time, TE.end_time, TE.billable
+    const consultantIdNum = Number(consultant_id);
+    if (!Number.isInteger(consultantIdNum) || consultantIdNum <= 0) {
+      return res.status(400).json({ error: "ID de consultante inválido" });
+    }
+
+    let rows = db
+      .prepare(`SELECT id , role  FROM consultants WHERE id = ? `)
+      .get(consultantIdNum);
+
+    const role = rows.role;
+    let query = ``;
+
+    if (role === "admin") {
+      rows = db
+        .prepare(
+          `SELECT TE.client_id, C.name AS client_name, TE.start_time, TE.end_time, TE.billable
          FROM time_entries TE 
          INNER JOIN clients C ON TE.client_id = C.id
          WHERE TE.client_id = ? AND TE.billable = 1 AND TE.date LIKE ?`,
-      )
-      .all(clientIdNum, `${month}%`);
+        )
+        .all(clientIdNum, `${month}%`);
+    } else {
+      rows = db
+        .prepare(
+          `SELECT TE.client_id, C.name AS client_name, TE.start_time, TE.end_time, TE.billable
+         FROM time_entries TE 
+         INNER JOIN clients C ON TE.client_id = C.id
+         WHERE TE.client_id = ? AND TE.billable = 1 AND TE.date LIKE ? AND TE.consultant_id = ?`,
+        )
+        .all(clientIdNum, `${month}%`, consultantIdNum);
+    }
+
+    // Validamos si obtiene registros
+    if (rows.length === 0) {
+      // Si es admin, devuelve mensaje genérico; si no, mensaje específico
+      if (role === "admin") {
+        return res.status(404).json({
+          error:
+            "No hay horas facturables para este cliente en el mes solicitado",
+        });
+      } else {
+        return res.status(404).json({
+          error:
+            "Usted no tiene horas facturables para este cliente en el mes solicitado",
+        });
+      }
+    }
 
     let totalHours = 0;
-    const clientName = rows[0].name;
+    const clientName = rows[0].client_name;
     rows.forEach((r) => {
       const [sh, sm] = r.start_time.split(":").map(Number);
       const [eh, em] = r.end_time.split(":").map(Number);

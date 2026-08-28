@@ -16,6 +16,7 @@ import { SearchBar } from "./components/SearchBar";
 
 function App() {
   const [user, setUser] = useState<{
+    id: number;
     username: string;
     role: string;
     name: string;
@@ -43,6 +44,7 @@ function App() {
   const [summaryResult, setSummaryResult] = useState<SummaryResult | null>(
     null,
   );
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     getTimeEntries().then(setEntries);
@@ -55,6 +57,8 @@ function App() {
     try {
       const data = await login(username, password);
       setUser(data.user);
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
     } catch {
       setLoginError("Usuario o contraseña incorrectos");
     }
@@ -67,15 +71,18 @@ function App() {
 
   async function handleSummary(e: React.FormEvent) {
     e.preventDefault();
-    if (!summaryForm.client_id || !summaryForm.month) return;
+    if (!summaryForm.client_id || !summaryForm.month || !user) return;
+    setSummaryError(null);
     try {
       const result = await getSummary(
         Number(summaryForm.client_id),
         summaryForm.month,
+        user.id,
       );
       setSummaryResult(result);
     } catch (error) {
       console.error("Error al obtener resumen:", error);
+      setSummaryError(error.message || "Error al obtener el resumen");
       setSummaryResult(null);
     }
   }
@@ -298,6 +305,15 @@ function App() {
             <button type="submit">Agregar</button>
           </form>
         </section>
+      )}
+
+      {summaryError && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <p>{summaryError}</p>
+            <button onClick={() => setSummaryError(null)}>Cerrar</button>
+          </div>
+        </div>
       )}
     </div>
   );

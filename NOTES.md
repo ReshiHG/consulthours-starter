@@ -177,6 +177,12 @@ return res.status(401).json({ error: "Credenciales incorrectas" });
 
 Se restringen las vistas a que solo se muestren si el usuario está logueado. Para ello se agrega el condicional de user {user && <section></section>}
 
+Se modifica el endpoint /api/summary para que pida una autenticación de usuario, valide los formatos de entrada y se gestionen los errores mediante un try catch
+
+Se modifica la función getSummary para que admita el envio de consultantID, además de obtener y usar el token en el header para la validación del usuario, y el manejo del mensaje de error para mostrarlo al usuario cuando intenta consultar horas facturadas de clientes que no atendio
+
+También se agrega el estado summaryError, se modifica el handleSummary para que actualice dicho estado y envié el user.id al getSummary. Y por último se agrega un Pop-up con el mensaje de error.
+
 5. Decide y documenta dos reglas de negocio que el ejercicio deja abiertas a propósito:
    - Qué debería pasar cuando un consultor registra horas que se traslapan con otro
      registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
