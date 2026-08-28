@@ -20,7 +20,10 @@ npm run seed     # crea backend/consulthours.db con datos de prueba
 npm start        # http://localhost:4000
 ```
 
-Usuarios de prueba (ver `backend/seed.js`): `admin/admin123`, `carla/carla2024`, `miguel/miguel!!`.
+Usuarios de prueba (ver `backend/seed.js`):
+`admin/admin123/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwidXNlcm5hbWUiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4Nzg4NDM2NiwiZXhwIjoxNzg3ODkxNTY2fQ.qvJMEH6wb8ED0xp46d5_zTQ-UP8FylGxM9SpuVYvpfg`,
+`carla/carla2024/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MiwidXNlcm5hbWUiOiJjYXJsYSIsInJvbGUiOiJjb25zdWx0YW50IiwiaWF0IjoxNzg3ODg0NTMwLCJleHAiOjE3ODc4OTE3MzB9.cO0PfMFQkH0jtztecl6o7w-zxaptPHl2u4bodF6KuZo`,
+`miguel/miguel!!/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MywidXNlcm5hbWUiOiJtaWd1ZWwiLCJyb2xlIjoiY29uc3VsdGFudCIsImlhdCI6MTc4Nzg4NDU1NCwiZXhwIjoxNzg3ODkxNzU0fQ.ZgVKXrbdXeSWasC2bIDWnL3atxgiW9cRC4Ay2SJYAOs`.
 
 **Frontend**
 

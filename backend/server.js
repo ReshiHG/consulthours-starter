@@ -11,6 +11,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const Database = require("better-sqlite3");
 const bcrypt = require("bcrypt");
+const authenticateToken = require("./middleware/auth");
 
 const app = express();
 const db = new Database("consulthours.db");
@@ -144,33 +145,50 @@ app.delete("/api/time-entries/:id", (req, res) => {
 // del ejercicio construir la vista de "resumen mensual" para un cliente.
 // ---------------------------------------------------------------------------
 
-app.get("/api/summary", (req, res) => {
-  const { client_id, month } = req.query; // month formato "2026-08"
+app.get("/api/summary", authenticateToken, (req, res) => {
+  try {
+    const { client_id, month } = req.query;
 
-  // Agrego la ristricción a la consulta para que traiga solo las horas facturables, evitando que traiga registros que puedan alentar la ejecución
-  const rows = db
-    .prepare(
-      `SELECT TE.client_id, C.name, TE.start_time, TE.end_time, TE.billable
-      FROM time_entries TE 
-      INNER JOIN clients C WHERE TE.client_id = C.id AND TE.client_id = ? AND TE.billable = ? AND TE.date LIKE ?`,
-    )
-    .all(client_id, 1, `${month}%`);
+    // Validación de parámetros
+    const clientIdNum = Number(client_id);
+    if (!Number.isInteger(clientIdNum) || clientIdNum <= 0) {
+      return res.status(400).json({ error: "ID de cliente inválido" });
+    }
 
-  let totalHours = 0;
-  const clientName = rows[0].name;
-  rows.forEach((r) => {
-    const [sh, sm] = r.start_time.split(":").map(Number);
-    const [eh, em] = r.end_time.split(":").map(Number);
-    totalHours += (eh * 60 + em - (sh * 60 + sm)) / 60;
-  });
+    if (!month || typeof month !== "string" || !/^\d{4}-\d{2}$/.test(month)) {
+      return res
+        .status(400)
+        .json({ error: "Formato de mes inválido. Use YYYY-MM" });
+    }
 
-  res.json({
-    client_id: Number(client_id),
-    clientName: clientName,
-    month,
-    billableHours: Math.round(totalHours * 100) / 100, // No entiendo el fin de esto, pero seguro es una regla de negocio, aunque al final lo deja igual
-    entryCount: rows.length,
-  });
+    const rows = db
+      .prepare(
+        `SELECT TE.client_id, C.name AS client_name, TE.start_time, TE.end_time, TE.billable
+         FROM time_entries TE 
+         INNER JOIN clients C ON TE.client_id = C.id
+         WHERE TE.client_id = ? AND TE.billable = 1 AND TE.date LIKE ?`,
+      )
+      .all(clientIdNum, `${month}%`);
+
+    let totalHours = 0;
+    const clientName = rows[0].name;
+    rows.forEach((r) => {
+      const [sh, sm] = r.start_time.split(":").map(Number);
+      const [eh, em] = r.end_time.split(":").map(Number);
+      totalHours += (eh * 60 + em - (sh * 60 + sm)) / 60;
+    });
+
+    res.json({
+      client_id: clientIdNum,
+      clientName: clientName,
+      month: month,
+      billableHours: Math.round(totalHours * 100) / 100,
+      entryCount: rows.length,
+    });
+  } catch (error) {
+    console.error("Error en /api/summary:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 const PORT = process.env.PORT;

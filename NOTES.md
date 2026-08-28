@@ -138,8 +138,8 @@ Por último genere una tabla simple con los datos de las horas facturables
 4. Agrega control de acceso con dos niveles, no solo uno:
    - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
    - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
-     un administrador puede eliminar cualquiera. Al crear un registro, el consultor dueño
-     debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
+     un administrador puede eliminar cualquiera.
+     Al crear un registro, el consultor dueño debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
      Revisa con cuidado cómo se está creando un registro nuevo hoy.
 
 4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
@@ -182,7 +182,11 @@ Se restringen las vistas a que solo se muestren si el usuario está logueado. Pa
      registro suyo el mismo día (hay un ejemplo real en los datos de prueba, el 6 de agosto).
    - Si un consultor debería poder ver el resumen financiero/facturable de otros consultores,
      o solo el propio.
+
+     Los consultores pueden ver los registros de los demás, sin embargo solo pueden eliminar sus propios registros (excepto para el rol admin, este puede eliminar cualquier registro) y en el resumen de horas facturables solo pueden ver las horas en las que trabajaron ellos mismos, excepto si el rol es admin.
+
      No hay una única respuesta correcta en ninguno de los dos casos — justifica la tuya.
+
 6. Sube tu solución con commits incrementales normales (no un solo commit final).
 7. Incluye un archivo `NOTES.md` con lo que encontraste, cómo lo corregiste, tus decisiones
    del punto 5, y — si usaste IA como apoyo — qué le pediste y qué tuviste que corregir
