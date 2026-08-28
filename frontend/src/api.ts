@@ -55,7 +55,17 @@ export async function createTimeEntry(
 }
 
 export async function deleteTimeEntry(id: number): Promise<void> {
-  await fetch(`${API_URL}/time-entries/${id}`, { method: "DELETE" });
+  const token = localStorage.getItem("token");
+  const res = await fetch(`${API_URL}/time-entries/${id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Error al eliminar el registro");
+  }
 }
 
 // TODO (parte del ejercicio): implementar aquí una función searchTimeEntries(q)

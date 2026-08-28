@@ -137,10 +137,88 @@ Por último genere una tabla simple con los datos de las horas facturables
 
 4. Agrega control de acceso con dos niveles, no solo uno:
    - **Autenticación**: las acciones que deberían requerir sesión iniciada, la requieren.
-   - **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
-     un administrador puede eliminar cualquiera.
+
+Para esto, solo se muestran las pantallas cuando el usuario se loguea, y al mismo tiempo se guarda en el localStorage el token del usuario para realizar las validaciones con los endpoints
+
+- **Autorización por rol/dueño**: un consultor solo puede eliminar sus propios registros;
+  un administrador puede eliminar cualquiera.
+
+Para que solo el administrador pueda eliminar todos los registros y cada consultor solo pueda eliminar los propios agregamos en el fontend una validación para que el botón eliminar aparezca según este criterio.
+
+{(user.role === "admin" || e.consultant_id === user.id) && (
+<button onClick={() => handleDelete(e)}>Eliminar</button>
+)}
+
+Del lado del backend, en el endpoint “/api/time-entries/:id” solicitamos el token de autenticación, validamos que el registro exista y dependiendo si el usuario es admin o propietario del registro permitimos que lo borre
+app.delete("/api/time-entries/:id", authenticateToken, (req, res) => {
+try {
+const entryId = req.params.id;
+const userId = req.user.id;
+const userRole = req.user.role;
+
+    // Se verifica que el registro exista y se obtiene el consultant_id par validar
+    const entry = db
+      .prepare("SELECT id, consultant_id FROM time_entries WHERE id = ?")
+      .get(entryId);
+
+    if (!entry) {
+      return res.status(404).json({ error: "Registro no encontrado" });
+    }
+
+    // Se validan permisos: admin o propietario
+    if (userRole !== "admin" && entry.consultant_id !== userId) {
+      return res.status(403).json({
+        error: "No tienes permiso para eliminar este registro",
+      });
+    }
+
+    db.prepare("DELETE FROM time_entries WHERE id = ?").run(entryId);
+
+    res.json({ ok: true, message: "Registro eliminado correctamente" });
+
+} catch (error) {
+console.error("Error en DELETE /api/time-entries/:id:", error);
+res.status(500).json({ error: "Error interno del servidor" });
+}
+});
+
+Del lado del fontend en la api, modificamos la función deleteTimeEntry para que obtenga y envié el token de autenticación
+export async function deleteTimeEntry(id: number): Promise<void> {
+const token = localStorage.getItem("token");
+const res = await fetch(`${API_URL}/time-entries/${id}`, {
+method: "DELETE",
+headers: {
+Authorization: `Bearer ${token}`,
+},
+});
+if (!res.ok) {
+const errorData = await res.json().catch(() => ({}));
+throw new Error(errorData.error || "Error al eliminar el registro");
+}
+}
+
+Por último en el handleDelete solicitamos una confirmación antes de permitir la eliminación del registro
+async function handleDelete(entry: TimeEntry) {
+// Confirmar eliminación
+const confirmDelete = window.confirm(
+`¿Seguro que quieres eliminar el registro del ${entry.date}?`,
+);
+if (!confirmDelete) return;
+
+    try {
+      await deleteTimeEntry(entry.id);
+      setEntries(await getTimeEntries());
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      alert(error.message || "No se pudo eliminar el registro");
+    }
+
+}
+
      Al crear un registro, el consultor dueño debe tomarse de la sesión iniciada, nunca de un valor que envíe el propio cliente.
      Revisa con cuidado cómo se está creando un registro nuevo hoy.
+
+
 
 4.1 Agregué npm install bcrypt para hashear las contraseñas, y las actualicé con node y en la base de datos
 node

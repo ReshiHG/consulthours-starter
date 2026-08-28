@@ -134,9 +134,35 @@ app.post("/api/time-entries", (req, res) => {
 });
 
 // Sin ningún tipo de verificación de sesión ni de rol.
-app.delete("/api/time-entries/:id", (req, res) => {
-  db.prepare("DELETE FROM time_entries WHERE id = ?").run(req.params.id);
-  res.json({ ok: true });
+app.delete("/api/time-entries/:id", authenticateToken, (req, res) => {
+  try {
+    const entryId = req.params.id;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Se verifica que el registro exista y se obtiene el consultant_id par validar
+    const entry = db
+      .prepare("SELECT id, consultant_id FROM time_entries WHERE id = ?")
+      .get(entryId);
+
+    if (!entry) {
+      return res.status(404).json({ error: "Registro no encontrado" });
+    }
+
+    // Se validan permisos: admin o propietario
+    if (userRole !== "admin" && entry.consultant_id !== userId) {
+      return res.status(403).json({
+        error: "No tienes permiso para eliminar este registro",
+      });
+    }
+
+    db.prepare("DELETE FROM time_entries WHERE id = ?").run(entryId);
+
+    res.json({ ok: true, message: "Registro eliminado correctamente" });
+  } catch (error) {
+    console.error("Error en DELETE /api/time-entries/:id:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
 });
 
 // ---------------------------------------------------------------------------

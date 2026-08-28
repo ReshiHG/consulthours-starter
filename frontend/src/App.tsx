@@ -89,10 +89,16 @@ function App() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.client_id || !form.date || !form.start_time || !form.end_time)
+    if (
+      !form.client_id ||
+      !form.date ||
+      !form.start_time ||
+      !form.end_time ||
+      !user
+    )
       return;
     await createTimeEntry({
-      consultant_id: 1, // TODO: usar el consultor con sesión iniciada, no un valor fijo
+      consultant_id: user.id, // TODO: usar el consultor con sesión iniciada, no un valor fijo
       client_id: Number(form.client_id),
       date: form.date,
       start_time: form.start_time,
@@ -112,10 +118,19 @@ function App() {
   }
 
   async function handleDelete(entry: TimeEntry) {
-    // TODO (parte del ejercicio): esta acción no debería estar disponible
-    // para cualquiera. Revisa qué pasa del lado del backend.
-    await deleteTimeEntry(entry.id);
-    setEntries(await getTimeEntries());
+    // Confirmar eliminación
+    const confirmDelete = window.confirm(
+      `¿Seguro que quieres eliminar el registro del ${entry.date}?`,
+    );
+    if (!confirmDelete) return;
+
+    try {
+      await deleteTimeEntry(entry.id);
+      setEntries(await getTimeEntries());
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      alert(error.message || "No se pudo eliminar el registro");
+    }
   }
 
   return (
@@ -246,7 +261,9 @@ function App() {
                   <td>{e.billable ? "Sí" : "No"}</td>
                   <td>{e.description}</td>
                   <td>
-                    <button onClick={() => handleDelete(e)}>Eliminar</button>
+                    {(user.role === "admin" || e.consultant_id === user.id) && (
+                      <button onClick={() => handleDelete(e)}>Eliminar</button>
+                    )}
                   </td>
                 </tr>
               ))}
